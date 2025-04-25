@@ -4,7 +4,6 @@ ipmu_DAQ is a lightweight Python library for controlling NI-DAQ hardware, loggin
 Originally developed for the Breadboard Model (BBM) of our rotation mechanism, but its modular design makes it reusable in other laboratory setups.
 
 ## Directory layout
-----------------
 README.md            - project documentation  
 requirements.txt     - Python dependencies  
 data/                - saved measurement files  
@@ -15,7 +14,6 @@ src/                 - library source code
 example_notebooks/   - Jupyter notebooks demonstrating workflows  
 
 ## Installation
-------------
 1. Clone the repository  
    git clone https://github.com/Ryoaki374/ipmu_DAQ.git  
    cd ipmu_DAQ  
@@ -31,7 +29,6 @@ example_notebooks/   - Jupyter notebooks demonstrating workflows
    pip install -e .  
 
 ## Quick start
------------
 Open any notebook in example_notebooks/ and run the cells. They demonstrate:  
 1. Discovering connected NI-DAQ devices  
 2. Configuring acquisition parameters  
@@ -39,9 +36,7 @@ Open any notebook in example_notebooks/ and run the cells. They demonstrate:
 4. Live plotting and basic analysis   
 
 ## Contributing
-------------
 please add issues if you find bugs!
 
 ## License
--------
 MIT License (see LICENSE file)
