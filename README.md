@@ -31,7 +31,7 @@ example_notebooks/   - Jupyter notebooks demonstrating workflows
    pip install -r requirements.txt  
 ```
 
-5. Install ipmu_DAQ in editable mode
+4. Install ipmu_DAQ in editable mode
 ```bash  
    pip install -e .  
 ```
