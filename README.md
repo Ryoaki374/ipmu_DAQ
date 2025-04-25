@@ -14,18 +14,20 @@ src/                 - library source code
 example_notebooks/   - Jupyter notebooks demonstrating workflows  
 
 ## Installation
-1. Clone the repository  
+1. Clone the repository
+```bash
    git clone https://github.com/Ryoaki374/ipmu_DAQ.git  
-   cd ipmu_DAQ  
+   cd ipmu_DAQ
+```
 
-2. (Optional) Create a virtual environment  
+3. (Optional) Create a virtual environment  
    python -m venv .venv  
    source .venv/bin/activate     (Windows: .venv\Scripts\activate)  
 
-3. Install dependencies  
+4. Install dependencies  
    pip install -r requirements.txt  
 
-4. Install ipmu_DAQ in editable mode  
+5. Install ipmu_DAQ in editable mode  
    pip install -e .  
 
 ## Quick start
