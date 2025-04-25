@@ -20,15 +20,21 @@ example_notebooks/   - Jupyter notebooks demonstrating workflows
    cd ipmu_DAQ
 ```
 
-3. (Optional) Create a virtual environment  
+2. (Optional) Create a virtual environment
+```bash
    python -m venv .venv  
    source .venv/bin/activate     (Windows: .venv\Scripts\activate)  
+```
 
-4. Install dependencies  
+3. Install dependencies
+```bash  
    pip install -r requirements.txt  
+```
 
-5. Install ipmu_DAQ in editable mode  
+5. Install ipmu_DAQ in editable mode
+```bash  
    pip install -e .  
+```
 
 ## Quick start
 Open any notebook in example_notebooks/ and run the cells. They demonstrate:  
