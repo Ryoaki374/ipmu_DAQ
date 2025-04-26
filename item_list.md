@@ -111,6 +111,15 @@ erDiagram
     %% UNIQUE (name,start_at) handled in DDL
   }
 
+ENVIRONMENT {
+    int         id                   PK "experiment_id"
+    varchar     name                 "experiment name"
+    varchar     description          "notes"
+    varchar     phase                "run | env | finl"
+    timestamptz start_at             "JST start time"
+    timestamptz end_at               "JST end time"
+  }
+
   %% ================== DEVICES ==================
   MotorDriver {
     int         id                   PK "motor_driver_id"
@@ -145,14 +154,8 @@ erDiagram
     int         id                   PK "ls218_id"
     int         experiment_id        FK "↳ EXPERIMENT.id"
     int         channel_count        "#channels"
-    int         calib_curve          "calibration id"
-  }
-
-  LS218_CHANNEL {
-    int         id                   PK "channel_id"
-    int         ls218_id             FK "↳ LS218.id"
-    int         ch_no                "physical ch no"
-    varchar     sensor_type          "diode / cernox ..."
+    int         calib_curve          "sensor_type"
+    int         ch_no
   }
 
   TemperatureLog {
@@ -163,7 +166,14 @@ erDiagram
     timestamptz measured_at          "JST"
   }
 
-  PG {
+  PressureGauge {
+    int         id                   PK "pg_id"
+    int         experiment_id        FK "↳ EXPERIMENT.id"
+    float       pressure             "pa"
+    timestamptz measured_at          "JST"
+  }
+
+  PressureGaugeLog {
     int         id                   PK "pg_id"
     int         experiment_id        FK "↳ EXPERIMENT.id"
     float       pressure             "pa"
@@ -205,8 +215,8 @@ erDiagram
   EXPERIMENT ||--|{ MotorDriver       : owns
   EXPERIMENT ||--|{ NIDAQ_ENC         : owns
   EXPERIMENT ||--|{ NIDAQ_ELC         : owns
-  EXPERIMENT ||--|{ LS218             : owns
-  EXPERIMENT ||--|{ PG                : owns
+  ENVIRONMENT ||--|{ LS218             : owns
+  ENVIRONMENT ||--|{ PressureGauge                : owns
   EXPERIMENT ||--|{ DataStore         : writes
   EXPERIMENT ||--|{ MotorCommand   : logs
   EXPERIMENT ||--|{ TemperatureLog    : logs
@@ -215,12 +225,13 @@ erDiagram
   PostProcess ||--|{  GRAPH        : writes
   NIDAQ_ELC ||--|{  GRAPH        : displayed_in
 
-  LS218 ||--|{ LS218_CHANNEL         : has
-  LS218_CHANNEL ||--|{ TemperatureLog  : records
+  LS218 ||--|{ TemperatureLog         : records
+  %% LS218_CHANNEL ||--|{ TemperatureLog  : records
   %% LS218_CHANNEL ||--|{ GRAPH  : displayed_in
-  TemperatureLog ||--|{ GRAPH  : displayed_in
+  PressureGauge ||--|{ PressureGaugeLog  : records
 
-  PG ||--|{ GRAPH  : displayed_in
+  TemperatureLog ||--|{ GRAPH  : displayed_in
+  PressureGaugeLog ||--|{ GRAPH  : displayed_in
 
   MotorCommand ||--o{ DataStore         : writes
   MotorCommand ||--|{ MotorDriver   : writes
