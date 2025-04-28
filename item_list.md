@@ -92,9 +92,7 @@
 - 
 - 
 
-### Entity-Relationship Diagram
 ### 論理設計
-すべてにDBを使うわけではないですが、設計の可視化を目的にER図を書いてみました。
 
 ```mermaid
 erDiagram
@@ -102,127 +100,118 @@ erDiagram
 
   %% ================== CORE ENTITIES ==================
   EXPERIMENT {
-    int         id                   PK "experiment_id"
     varchar     name                 "experiment name"
     varchar     description          "notes"
-    varchar     phase                "run | env | finl"
-    timestamptz start_at             "JST start time"
-    timestamptz end_at               "JST end time"
-    %% UNIQUE (name,start_at) handled in DDL
+    timestamptz executed_at          "command time"
   }
 
 ENVIRONMENT {
-    int         id                   PK "experiment_id"
     varchar     name                 "experiment name"
     varchar     description          "notes"
     varchar     phase                "run | env | finl"
-    timestamptz start_at             "JST start time"
-    timestamptz end_at               "JST end time"
+    timestamptz start_at             "UNIX start time"
+    timestamptz end_at               "UNIX end time"
   }
 
   %% ================== DEVICES ==================
-  MotorDriver {
-    int         id                   PK "motor_driver_id"
-    int         experiment_id        FK "↳ EXPERIMENT.id"
-    int         frequency            "steady rpm"
-    int         rot_direction        "cw / ccw"
-    timestamptz steady_reached_at    "reached steady"
-  }
-
-  MotorCommand {
-    int         id                   PK "cmd_id"
-    int         experiment_id        FK "↳ EXPERIMENT.id"
-    int         motor_driver_id      FK "↳ MotorDriver.id"
+  MotorControl {
     int         step                 "pulse inc width"
     int         rst                  "pulse dur width"
     int         pulse_total          "target pulses"
     int         current_exct         "excitation current"
-    timestamptz executed_at          "command time"
+    int         frequency            "steable in rpm"
+    int         rot_direction        "cw/ccw"
+    timestamptz exp_start_at         "UNIX start time"
+    timestamptz exp_end_at           "UNIX end time"
+    timestamptz stable_reached_at    "UNIX reached stable time"
+    int current_step    "num of pulse"
+    int current_speed   "current speed in rps"
+  }
+
+  MotorDriver {
   }
 
   NIDAQ_ENC {
-    int         id                   PK "ndaq_enc_id"
-    int         experiment_id        FK "↳ EXPERIMENT.id"
+    int mod_no "channel of Mod"
+    int ch_no "channel of ai"
+    int sampling_rate
+    float ai0 "channnel 1"
+    float ai1 "channnel 2"
+    float ai2 "channnel 3"
   }
 
   NIDAQ_ELC {
-    int         id                   PK "ndaq_elc_id"
-    int         experiment_id        FK "↳ EXPERIMENT.id"
+    int mod_no "channel of Mod"
+    int ch_no "channel of ai"
+    int sampling_rate
+    float ai0 "channnel 1"
+    float ai1 "channnel 2"
+    float ai2 "channnel 3"
   }
 
   LS218 {
-    int         id                   PK "ls218_id"
-    int         experiment_id        FK "↳ EXPERIMENT.id"
-    int         channel_count        "#channels"
+    int         channel_count        "channels"
     int         calib_curve          "sensor_type"
     int         ch_no
+    int         sampling_rate        "sampling rate"
+    float       temp
   }
 
   TemperatureLog {
-    int         id                   PK "temp_id"
-    int         experiment_id        FK "↳ EXPERIMENT.id"
-    int         channel_id           FK "↳ LS218_CHANNEL.id"
-    float       temperature          "kelvin"
-    timestamptz measured_at          "JST"
+
   }
 
   PressureGauge {
-    int         id                   PK "pg_id"
-    int         experiment_id        FK "↳ EXPERIMENT.id"
-    float       pressure             "pa"
-    timestamptz measured_at          "JST"
+    int         sampling_rate        "sampling rate"
+    float       pressure             "Pa"
   }
 
   PressureGaugeLog {
-    int         id                   PK "pg_id"
-    int         experiment_id        FK "↳ EXPERIMENT.id"
-    float       pressure             "pa"
-    timestamptz measured_at          "JST"
   }
 
   %% ================== DATA STORAGE ==================
   DataStore {
-    int         id                   PK "datastore_id"
-    int         experiment_id        FK "↳ EXPERIMENT.id"
     varchar     category             "run_data | env_data | processed"
-    timestamptz stored_at            "JST"
-    varchar     uri                  "storage path"
+    timestamptz stored_at            "JST stored time"
+    varchar     url                  "storage path"
   }
 
   %% ================== Post Process ==================
   PostProcess {
-    int         id                   PK "postprocess_id"
-    int         experiment_id        FK "↳ EXPERIMENT.id"
     varchar     category             "run_data | env_data | processed"
     timestamptz stored_at            "JST"
     varchar     uri                  "storage path"
   }
 
+  UNIX2JST {
+    timestamptz exp_start_at "UNIX start time"
+    timestamptz exp_end_at "UNIX end time"
+    timestamptz exp_start_at_JST "JST start time"
+    timestamptz exp_end_at_JST "JST start time"
+  }
+
   %% ================== GRAPH & UI ==================
   GRAPH {
-    int         id                   PK "graph_id"
     varchar     title                "graph title"
     text        config_json          "chart cfg (x, y, etc)"
   }
 
   FINL_UI {
-    int         id                   PK "finl_ui_id"
-    int         experiment_id        FK "↳ EXPERIMENT.id"
-    varchar     layout_json          "ui layout cfg"
   }
 
   %% ================== RELATIONSHIPS ==================
-  EXPERIMENT ||--|{ MotorDriver       : owns
-  EXPERIMENT ||--|{ NIDAQ_ENC         : owns
-  EXPERIMENT ||--|{ NIDAQ_ELC         : owns
-  ENVIRONMENT ||--|{ LS218             : owns
-  ENVIRONMENT ||--|{ PressureGauge                : owns
-  EXPERIMENT ||--|{ DataStore         : writes
-  EXPERIMENT ||--|{ MotorCommand   : logs
-  EXPERIMENT ||--|{ TemperatureLog    : logs
+  EXPERIMENT ||--o{ NIDAQ_ENC         : writes
+  EXPERIMENT ||--o{ NIDAQ_ELC         : writes
+  ENVIRONMENT ||--o{ LS218             : writes
+  ENVIRONMENT ||--o{ PressureGauge     : writes
+  EXPERIMENT ||--o{ DataStore         : writes
+
+  MotorControl ||--o{ MotorDriver   : writes
+  MotorControl ||--o{ FINL_UI   : writes
+  MotorControl ||--o{ UNIX2JST   : writes
 
   NIDAQ_ENC ||--|{  PostProcess        : writes
-  PostProcess ||--|{  GRAPH        : writes
+  PostProcess ||--|{  GRAPH        : displayed_in
   NIDAQ_ELC ||--|{  GRAPH        : displayed_in
 
   LS218 ||--|{ TemperatureLog         : records
@@ -233,9 +222,9 @@ ENVIRONMENT {
   TemperatureLog ||--|{ GRAPH  : displayed_in
   PressureGaugeLog ||--|{ GRAPH  : displayed_in
 
-  MotorCommand ||--o{ DataStore         : writes
-  MotorCommand ||--|{ MotorDriver   : writes
-  MotorCommand ||--|{ FINL_UI   : displayed_in
+  EXPERIMENT ||--|{ MotorControl   : own
+  %%EXPERIMENT ||--|{ UNIX2JST   : convert
+  UNIX2JST ||--|{ FINL_UI   : displayed_in
 
   GRAPH ||--|{ FINL_UI          : displayed_in
   %%FINL_UI ||--|{ FINL_UI_GRAPH       : contains
