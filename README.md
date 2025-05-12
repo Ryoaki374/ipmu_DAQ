@@ -48,3 +48,6 @@ please add issues if you find bugs!
 
 ## License
 MIT License (see LICENSE file)
+
+## Memo
+pip install pyqtgraph PyQt6
