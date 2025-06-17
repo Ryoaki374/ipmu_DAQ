@@ -1,0 +1,58 @@
+# parameters.toml  — v0.2
+# ------------------------------------------------------------  general
+[general]
+t_DC        = 90          # s  (duty-cycle period)
+pps         = 100         # pulses at initialization
+step        = 5           # pps
+rst         = 1           # s  (reset time)
+target_freq = 1           # rps
+run_sec     = 600         # auto-stop after 10 min
+debug       = true        # DEBUG モードでジェネレータ動作
+
+# ------------------------------------------------------------  IO / sampling
+[io]
+sample_rate    = 100_000   # Hz
+gen_chunk_sec  = 0.1       # s  (1 生成チャンク長)
+proc_interval  = 0.125     # s  (処理周期)
+queue_depth    = 40        # raw AB backlog
+quad_depth     = 40        # processed backlog
+
+# 以下は上から計算可能
+chunk_sec      = 0.1
+n_samples_gen  = 10_000    # sample_rate * gen_chunk_sec
+samples_proc   = 12_500    # proc_interval * sample_rate
+
+# ------------------------------------------------------------  encoder
+[encoder]
+pulse_height    = 5.0          # V
+input_velocity  = 0.1          # rps
+pulse_duty      = 0.5
+threshold       = 2.5          # V (logic)
+ideal_cps       = 0.1          # counts/s  (constant ideal)
+
+# 以下は上から計算可能
+pulse_width     = 0.01953125       # s   (= 1 / (0.1 * 512))
+pulse_phase_a   = 0.0              # s
+pulse_phase_b   = -0.0048828125    # s   (= −pulse_width / 4)
+quadpulse_width = 0.00025          # s
+
+# ------------------------------------------------------------  power supply
+[power]
+amplitude = 0.3                     # V
+omega     = 226.1946710584651       # rad/s  (2 π · 36 Hz)
+phase     = 0.0                     # rad
+
+# ------------------------------------------------------------  GUI
+[gui]
+plot_sec        = 0.02     # set xlim
+gui_interval_ms = 50       # GUI update interval
+display_sec     = 1_200    # run_sec + 600
+
+history        = 2_000     # sample_rate * plot_sec
+count_history  = 6_000     # run_sec / gen_chunk_sec
+velo_history   = 6_000
+pow_history    = 6_000
+
+# ------------------------------------------------------------  logging
+[logging]
+log_chunk = 1024           # flush log queue every N msgs
