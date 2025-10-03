@@ -1,0 +1,13 @@
+# _config_run.toml
+# ------------------------------------------------------------  run preference
+[pref]
+DEBUG = 0     # set True for jitter log
+
+# ------------------------------------------------------------  ASAHI Motor driver
+[driver]
+t_DC = 10        # DC duration before starting a rotation [s]
+pps = 0          # pulses at initial state
+step = 100       # num of pulse increment [pps]
+rst = 1          # pulse increment time [s]
+target_freq = 1  # target rotation frequency [rps]
+# ------------------------------------------------------------
