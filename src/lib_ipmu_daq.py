@@ -8,6 +8,9 @@ import h5py, pathlib
 from datetime import datetime
 from collections import deque
 
+import pyqtgraph as pg
+from PyQt6 import QtCore
+
 
 def initState():
     global DEBUG
@@ -456,3 +459,236 @@ def processor() -> None:
         n = dset.shape[0]
         dset.resize(n+buf_len, axis=0); dset[-buf_len:] = buf[:buf_len]
     h5f.close()
+
+def start_gui() -> None:
+    pg.setConfigOptions(useOpenGL=True, background="w", foreground="k")
+    app = pg.mkQApp("Live plots")
+
+    win = pg.GraphicsLayoutWidget(title="DEMO")
+
+    layout = win.ci.layout                 # GraphicsLayout の中身
+    layout.setColumnStretchFactor(0, 4)
+    layout.setColumnStretchFactor(1, 5)
+    #win_sig = pg.GraphicsLayoutWidget(show=True, title="Signal")
+    #win_vel = pg.GraphicsLayoutWidget(show=True, title="Velocity")
+
+    #win_sig.resize(800, 600)
+    #win_vel.resize(800, 600)
+    #win_sig.show()
+
+    pruning = PRUNING
+    if pruning < 1:
+        pruning = 1 # 0以下の値は無効とし、1に設定
+
+
+    win.resize(800, 600)
+    win.show()
+
+    # [0, 0] A/B -------------------------------------------------------
+    plt_ab = win.addPlot(row=0, col=0, title="RAW A / B")
+    curve_A = plt_ab.plot(pen=pg.mkPen("#ff4b00", width=3),stepMode="right")
+    curve_B = plt_ab.plot(pen=pg.mkPen("#005aff", width=3),stepMode="right")
+    plt_ab.setLabel("left", "Amplitude [V]")
+    plt_ab.setLabel("bottom", "Time [s]")
+    plt_ab.setYRange(-0.5, PULSE_HEIGHT + 0.5)
+
+    # [2,0] I/V waveform --------------------------------------------
+    plt_IV = win.addPlot(row=2, col=0, title="RAW I / V")
+    curve_I = plt_IV.plot(pen=pg.mkPen("r", width=3))
+    curve_V = plt_IV.plot(pen=pg.mkPen("b", width=3))
+    plt_IV.setLabel("left", "Amplitude [a.u.]")
+    plt_IV.setLabel("bottom", "Time [s]")
+    plt_IV.setYRange(-1.2, 1.2)
+
+    # [0,1] count (fixed x-axis) -------------------------------------
+    plt_cnt = win.addPlot(row=0, col=1, title="Velovity - Command")
+    curve_cnt = plt_cnt.plot(pen=pg.mkPen("#03af7a", width=3))
+    #plt_cnt.setXRange(0, RUN_SEC, padding=0)
+    #plt_cnt.enableAutoRange("x", True)
+    plt_cnt.setLabel("left", "Diff")
+    plt_cnt.setLabel("bottom", "Time [s]")
+
+    # [1,1] velocity (fixed x-axis) ----------------------------------
+    plt_vel = win.addPlot(row=1, col=1, title="Velocity")
+    curve_vel     = plt_vel.plot(pen=pg.mkPen("#00a0e9", width=3))   # measured
+    curve_vel_ref = plt_vel.plot(pen=pg.mkPen("m", width=3),stepMode="right")   # ideal (new)
+    #plt_vel.setXRange(0, RUN_SEC, padding=0)
+    #plt_vel.enableAutoRange("x", True)
+    plt_vel.setLabel("left", "Velocity [rps]")
+    plt_vel.setLabel("bottom", "Time [s]")
+
+    # [2,1] power ----------------------------------
+    plt_pow = win.addPlot(row=2, col=1, title="Power")
+    curve_pow     = plt_pow.plot(pen=pg.mkPen("#f6aa00", width=3))   # measured
+    plt_pow.setLabel("left", "Power [W]")
+    plt_pow.setLabel("bottom", "Time [s]")
+
+    # buffers ---------------------------------------------------------
+    xs = ya = yb = yq = np.empty(0, dtype=np.float32)
+    xs_cnt = y_cnt = np.empty(0, dtype=np.float32)
+    xs_vel = y_vel = np.empty(0, dtype=np.float32)
+    xr = yr = np.empty(0, dtype=np.float32)
+    y_Iu = y_Vu = np.empty(0, dtype=np.float32)
+    xs_time_p = y_P_tot = np.empty(0, dtype=np.float32)
+
+
+def start_gui() -> None:
+    pg.setConfigOptions(useOpenGL=True, background="w", foreground="k")
+    app = pg.mkQApp("Live plots")
+
+    win = pg.GraphicsLayoutWidget(title="DEMO")
+
+    layout = win.ci.layout                 # GraphicsLayout の中身
+    layout.setColumnStretchFactor(0, 4)
+    layout.setColumnStretchFactor(1, 5)
+    #win_sig = pg.GraphicsLayoutWidget(show=True, title="Signal")
+    #win_vel = pg.GraphicsLayoutWidget(show=True, title="Velocity")
+
+    #win_sig.resize(800, 600)
+    #win_vel.resize(800, 600)
+    #win_sig.show()
+    pruning = PRUNING
+    if pruning < 1:
+        pruning = 1 # 0以下の値は無効とし、1に設定
+
+
+    win.resize(800, 600)
+    win.show()
+
+    # [0, 0] A/B -------------------------------------------------------
+    plt_ab = win.addPlot(row=0, col=0, title="RAW A / B")
+    curve_A = plt_ab.plot(pen=pg.mkPen("#ff4b00", width=3),stepMode="right")
+    curve_B = plt_ab.plot(pen=pg.mkPen("#005aff", width=3),stepMode="right")
+    plt_ab.setLabel("left", "Amplitude [V]")
+    plt_ab.setLabel("bottom", "Time [s]")
+    plt_ab.setYRange(-0.5, PULSE_HEIGHT + 0.5)
+
+    # [1,0] Quad waveform --------------------------------------------
+    #plt_q = win.addPlot(row=1, col=0, title="Quad pulse")
+    #curve_Q = plt_q.plot(pen=pg.mkPen("m", width=3))
+    #plt_q.setLabel("left", "Amplitude [V]")
+    #plt_q.setLabel("bottom", "Time [s]")
+    #plt_q.setYRange(-PULSE_HEIGHT - 0.5, PULSE_HEIGHT + 0.5)
+
+    # [2,0] I/V waveform --------------------------------------------
+    plt_IV = win.addPlot(row=2, col=0, title="PhaseU I / V")
+    curve_I = plt_IV.plot(pen=pg.mkPen("r", width=3))
+    curve_V = plt_IV.plot(pen=pg.mkPen("b", width=3))
+    plt_IV.setLabel("left", "Amplitude [a.u.]")
+    plt_IV.setLabel("bottom", "Time [s]")
+    plt_IV.setYRange(-1.2, 1.2)
+
+    # [0,1] count (fixed x-axis) -------------------------------------
+    plt_cnt = win.addPlot(row=0, col=1, title=r"Delta velocity")
+    curve_cnt = plt_cnt.plot(pen=pg.mkPen("#03af7a", width=3))
+    #plt_cnt.setXRange(0, RUN_SEC, padding=0)
+    #plt_cnt.enableAutoRange("x", True)
+    plt_cnt.setLabel("left", "Diff")
+    plt_cnt.setLabel("bottom", "Time [s]")
+
+    # [1,1] velocity
+    plt_vel = win.addPlot(row=1, col=1, title="Velocity")
+    curve_vel     = plt_vel.plot(pen=pg.mkPen("#00a0e9", width=3))   # measured
+    curve_vel_ref = plt_vel.plot(pen=pg.mkPen("#a05aff", width=3), stepMode="right")   # ideal (new)
+    #plt_vel.setXRange(0, RUN_SEC, padding=0)
+    #plt_vel.enableAutoRange("x", True)
+    plt_vel.setLabel("left", "Velocity [rps]")
+    plt_vel.setLabel("bottom", "Time [s]")
+
+    # [2,1] power ----------------------------------
+    plt_pow = win.addPlot(row=2, col=1, title="Power")
+    curve_pow     = plt_pow.plot(pen=pg.mkPen("#f6aa00", width=3))   # measured
+    plt_pow.setLabel("left", "Power [W]")
+    plt_pow.setLabel("bottom", "Time [s]")
+
+    # buffers ---------------------------------------------------------
+    xs = ya = yb = yq = np.empty(0, dtype=np.float32)
+    xs_cnt = y_cnt = np.empty(0, dtype=np.float32)
+    xs_vel = y_vel = np.empty(0, dtype=np.float32)
+    xr = yr = np.empty(0, dtype=np.float32)       # ideal velocity buffers (new)
+    y_Iu = y_Vu = np.empty(0, dtype=np.float32)  # I/V buffers (new)
+    xs_time_p = y_P_tot = np.empty(0, dtype=np.float32)  # time and power buffers (new)
+
+    def refresh():
+        nonlocal xs, ya, yb, yq, xs_cnt, y_cnt, xs_vel, y_vel, xr, yr, xs_time_p, y_P_tot, y_Iu, y_Vu
+        try:
+            while True:
+                # receive processed data
+                t_ax, pA, pB, qsig, t_end, cum_cnt, vel, t_ref, v_ref, time_p, P_tot, Iu_blk, Vu_blk = quad_q.get_nowait()
+
+                xs = np.concatenate((xs, t_ax[::pruning]))[-HISTORY:]
+                ya = np.concatenate((ya, pA[::pruning]))[-HISTORY:]
+                yb = np.concatenate((yb, pB[::pruning]))[-HISTORY:]
+                #yq = np.concatenate((yq, qsig))[-HISTORY:]
+
+                xs_cnt = np.append(xs_cnt, t_end)[-COUNT_HISTORY:]
+                y_cnt  = np.append(y_cnt, vel-v_ref)[-COUNT_HISTORY:]
+
+                xs_vel = np.append(xs_vel, t_end)[-VELO_HISTORY:]
+                y_vel  = np.append(y_vel, vel)[-VELO_HISTORY:]
+
+                xr = np.concatenate((xr, t_ref))[-VELO_HISTORY:]
+                yr = np.concatenate((yr, v_ref))[-VELO_HISTORY:]
+
+                y_Iu = np.concatenate((y_Iu, Iu_blk[::pruning]))[-HISTORY:]
+                y_Vu = np.concatenate((y_Vu, Vu_blk[::pruning]))[-HISTORY:]
+
+                xs_time_p = np.append(xs_time_p, time_p)[-POW_HISTORY:]
+                y_P_tot = np.append(y_P_tot, P_tot)[-POW_HISTORY:]
+
+                quad_q.task_done()
+        except queue.Empty:
+            pass
+
+        # scrolling window for waveforms only
+        if xs.size:
+            start = xs[-1] - PLOT_SEC
+            plt_ab.setXRange(start, xs[-1], padding=0)
+            plt_IV.setXRange(start, xs[-1], padding=0)
+
+        # --- auto-range for count/velocity ---
+        if xs_cnt.size:
+            plt_cnt.setXRange(xs_cnt[-1]-10, xs_cnt[-1], padding=0)
+
+        if xs_vel.size:
+            plt_vel.setXRange(xs_vel[-1]-10, xs_vel[-1], padding=0)
+
+        if xs_time_p.size:
+            plt_pow.setXRange(xs_time_p[-1]-10, xs_time_p[-1], padding=0)
+
+        # --- push data to curves ---
+        curve_A.setData(xs, ya)
+        curve_B.setData(xs, yb)
+        curve_I.setData(xs, y_Iu)
+        curve_V.setData(xs, y_Vu)
+        curve_cnt.setData(xs_cnt, y_cnt)
+        curve_vel.setData(xs_vel, y_vel)
+        curve_vel_ref.setData(xr, yr)
+        curve_pow.setData(xs_time_p, y_P_tot)
+
+    timer = QtCore.QTimer()
+    timer.timeout.connect(refresh)
+    timer.start(GUI_INTERVAL_MS)
+
+    # auto-stop after RUN_SEC
+    QtCore.QTimer.singleShot(int(RUN_SEC * 1000), lambda: (stop_writer.set(), app.quit()))
+    app.exec()
+
+if __name__ == "__main__":
+    threading.Thread(target=log_listener, daemon=True).start()  # start log listener
+
+    gen_th  = threading.Thread(target=generator, daemon=True)
+    proc_th = threading.Thread(target=processor, daemon=True)
+
+    gen_th.start()
+    proc_th.start()
+    # con_th.start()
+
+    start_gui()  # blocks until the user closes the window or timer expires
+
+    # join threads and exit
+    stop_writer.set()
+    gen_th.join()
+    proc_th.join()
+
+    print("Graceful shutdown.")

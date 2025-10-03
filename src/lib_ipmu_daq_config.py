@@ -185,7 +185,6 @@ def printConfig(cfg: AppConfig):
 
 def initParams(config_preset: dict, config_run: dict, debug: bool = True, runs_dir: Path | str = RUNS_DIR) -> None:
     cfg = AppConfig.fromDict(config_preset, config_run)
-    #app = DAQApp(cfg, runs_dir=runs_dir)
     if debug:
         printConfig(cfg)
-    #return app
+    return cfg
