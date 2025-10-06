@@ -31,6 +31,13 @@ class DAQApp:
         self.log_q = None
 
     def setup(self):
+        if self.DEBUG:
+            logger = logging.getLogger("debug")
+            if logger.hasHandlers():
+                logger.handlers.clear()
+            logger.setLevel(logging.INFO)
+
+
         """Sets up shared resources for the application components."""
         self.buf_q = queue.Queue(maxsize=self.cfg.io.queue_depth)
         self.quad_q = queue.Queue(maxsize=self.cfg.io.quad_depth)
