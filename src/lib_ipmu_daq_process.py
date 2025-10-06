@@ -2,11 +2,10 @@ import queue
 import threading
 import time
 from collections import deque
-from datetime import datetime
-from pathlib import Path
 
 import h5py
 import numpy as np
+import logging
 
 # Import AppConfig from daq_config.py
 from lib_ipmu_daq_config import AppConfig
@@ -16,40 +15,42 @@ class Processor:
     Processes raw signal data, logs it, and sends results to the GUI queue.
     Runs in its own thread.
     """
-    def __init__(self, config: AppConfig, buf_q: queue.Queue, quad_q: queue.Queue, stop_event: threading.Event, runs_dir: Path):
+    def __init__(self, config: AppConfig, buf_q: queue.Queue, quad_q: queue.Queue, stop_event: threading.Event, h5f: h5py.File | None = None, dset: h5py.Dataset | None = None, debug: bool = False, logger: logging.Logger | None = None):
         """Initializes the Processor."""
         self.cfg = config
         self.buf_q = buf_q
         self.quad_q = quad_q
         self.stop_event = stop_event
-        self.runs_dir = runs_dir
-        self.h5f = None
-        self.dset = None
+        #self.runs_dir = runs_dir
+        self.h5f = h5f
+        self.dset = dset
+        self.DEBUG = debug
+        self.logger = logger
 
     def run(self):
         """
         The main loop for the processor thread.
         Initializes storage, then processes data until the stop event is set.
         """
-        self._initStorer()
+        #self._initStorer()
         self._processorLoop()
 
-    def _initStorer(self):
-        """Initializes settings for saving data to an HDF5 file."""
-        self.runs_dir.mkdir(exist_ok=True)
-        timestamp = datetime.now().strftime("%y%m%d%H%M%S")
-        filepath = self.runs_dir / f"{timestamp}.h5"
-        
-        self.h5f = h5py.File(filepath, "w")
-        self.dset = self.h5f.create_dataset(
-            "log",
-            shape=(0, self.cfg.logging.log_data_num),
-            maxshape=(None, self.cfg.logging.log_data_num),
-            dtype=np.float32,
-            chunks=(self.cfg.logging.log_chunk, self.cfg.logging.log_data_num),
-            compression="gzip"
-        )
-        print(f"HDF5 dataset created at: {filepath}")
+    #def _initStorer(self):
+    #    """Initializes settings for saving data to an HDF5 file."""
+    #    self.runs_dir.mkdir(exist_ok=True)
+    #    timestamp = datetime.now().strftime("%y%m%d%H%M%S")
+    #    filepath = self.runs_dir / f"{timestamp}.h5"
+    #    
+    #    self.h5f = h5py.File(filepath, "w")
+    #    self.dset = self.h5f.create_dataset(
+    #        "log",
+    #        shape=(0, self.cfg.logging.log_data_num),
+    #        maxshape=(None, self.cfg.logging.log_data_num),
+    #        dtype=np.float32,
+    #        chunks=(self.cfg.logging.log_chunk, self.cfg.logging.log_data_num),
+    #        compression="gzip"
+    #    )
+    #    print(f"HDF5 dataset created at: {filepath}")
 
     def _processorLoop(self):
         """Processes raw data, saves logs, and sends results to the GUI queue."""
@@ -57,6 +58,7 @@ class Processor:
         buf = np.empty((self.cfg.logging.log_chunk, self.cfg.logging.log_data_num), dtype=np.float32)
         buf_len = 0
         
+        # python ring buffer
         ring_t: deque[np.float32] = deque(); ring_a: deque[np.float32] = deque(); ring_b: deque[np.float32] = deque()
         ring_Iu: deque[np.float32] = deque(); ring_Iv: deque[np.float32] = deque(); ring_Iw: deque[np.float32] = deque()
         ring_Vu: deque[np.float32] = deque(); ring_Vv: deque[np.float32] = deque(); ring_Vw: deque[np.float32] = deque()
@@ -64,6 +66,7 @@ class Processor:
         last_A = last_B = None
         next_proc = time.perf_counter()
         cum_count = 0
+        last_ts   = next_proc
 
         while not self.stop_event.is_set():
             try:
@@ -85,6 +88,7 @@ class Processor:
             if len(ring_t) < self.cfg.dependent.samples_proc:
                 continue
 
+            # ----------Copy deque -> NumPy ----------
             samples_proc = self.cfg.dependent.samples_proc
             t_blk = np.array([ring_t.popleft() for _ in range(samples_proc)], dtype=np.float32)
             a_blk = np.array([ring_a.popleft() for _ in range(samples_proc)], dtype=np.float32)
@@ -96,20 +100,35 @@ class Processor:
             Vv_blk = np.array([ring_Vv.popleft() for _ in range(samples_proc)], dtype=np.float32)
             Vw_blk = np.array([ring_Vw.popleft() for _ in range(samples_proc)], dtype=np.float32)
 
+            # ---------- Process encoder ----------
             dir_log, last_A, last_B = self._getPulseDirection(a_blk, b_blk, threshold=self.cfg.encoder_postproc.threshold, prev_A=last_A, prev_B=last_B)
             quad_sig = self._genQuadPulse(t_blk, dir_log)
             delta_cnt = self._getPulseCount(dir_log)
             cum_count += delta_cnt
             velocity = delta_cnt / self.cfg.io.proc_interval / 2048
 
+            # get power
             time_p, P_u, P_v, P_w, P_tot = self._getPower(t_blk, Iu_blk, Iv_blk, Iw_blk, Vu_blk, Vv_blk, Vw_blk, 0, -0.1)
+
+            # slice ideal velocity
             t_ref, v_ref = ideal_provider(t_blk[0], t_blk[-1])
 
+            if self.DEBUG:
+                now = time.perf_counter()
+                jitter = (now - last_ts) * 1e3
+                self.logger.info(
+                    "EPOCH = %f, wall = %6.2f ms, jitter = %6.2f ms  delta c=%+d, v=%6.3f, v_ref=%6.3f, time_p = %f, P_tot = %f",
+                    now, jitter, (now - last_ts) * 1e3,
+                    delta_cnt, velocity, v_ref, time_p, P_tot
+                )
+                last_ts = now
+
+            # ---------- TX to GUI ----------
             try:
                 self.quad_q.put_nowait((t_blk, a_blk, b_blk, quad_sig, t_blk[-1], cum_count, velocity, t_ref, v_ref, time_p, P_tot, Iu_blk, Vu_blk))
             except queue.Full:
                 pass
-
+            # ---------- append to HDF5 buffer ----------
             buf[buf_len] = (t_blk[-1], (v_ref[-1] if v_ref.size else 0.0), velocity, P_tot)
             buf_len += 1
             if buf_len == buf.shape[0]:
@@ -117,12 +136,13 @@ class Processor:
                 self.dset.resize(n + buf_len, axis=0)
                 self.dset[-buf_len:] = buf
                 buf_len = 0
-        
+
+        # --- Final flush 1024 data ---
         if buf_len:
             n = self.dset.shape[0]
             self.dset.resize(n + buf_len, axis=0)
             self.dset[-buf_len:] = buf[:buf_len]
-        
+
         if self.h5f:
             self.h5f.close()
             print("HDF5 file closed by processor.")
@@ -130,8 +150,12 @@ class Processor:
 
     def _getPulseDirection(self, dA: np.ndarray, dB: np.ndarray, *, threshold: float, prev_A: bool | None = None, prev_B: bool | None = None) -> tuple[np.ndarray, bool, bool]:
         A = dA > threshold; B = dB > threshold
-        A_prev = np.concatenate(([prev_A if prev_A is not None else A[0]], A[:-1]))
-        B_prev = np.concatenate(([prev_B if prev_B is not None else B[0]], B[:-1]))
+        if prev_A is None:  # first block → old behaviour
+            A_prev = np.concatenate(([A[0]], A[:-1]))
+            B_prev = np.concatenate(([B[0]], B[:-1]))
+        else:               # use states carried over from last block
+            A_prev = np.concatenate(([prev_A], A[:-1]))
+            B_prev = np.concatenate(([prev_B], B[:-1]))
         dir_log = (B_prev ^ A).astype(int) - (A_prev ^ B).astype(int)
         return dir_log.astype(np.int8), bool(A[-1]), bool(B[-1])
 
@@ -164,19 +188,28 @@ class Processor:
         y_schmitt = np.zeros_like(current)
         state = 0.0
         for i, sample in enumerate(current):
-            if state == 0.0 and sample >= upper: state = 1.0
-            elif state == 1.0 and sample <= lower: state = 0.0
+            if state == 0.0 and sample >= upper:
+                state = 1.0
+            elif state == 1.0 and sample <= lower:
+                state = 0.0
             y_schmitt[i] = state
-        d = np.diff(y_schmitt.astype(int))
-        return np.where(d == 1)[0] + 1, np.where(d == -1)[0] + 1
-    
+        d = np.diff(y_schmitt.astype(int)) # diff（+1 なら立ち上がり, −1 なら立ち下がり）
+        rise_idx = np.where(d ==  1)[0] + 1     # 立ち上がり位置
+        fall_idx = np.where(d == -1)[0] + 1     # 立ち下がり位置
+        return rise_idx, fall_idx
+
     def _getPower(self, time_arr, I_u, I_v, I_w, V_u, V_v, V_w, upper, lower):
         rise_idx_I_u, _ = self._utilSchmittTrigger(upper, lower, I_u)
-        if len(rise_idx_I_u) >= 2:
-            s, e = rise_idx_I_u[0], rise_idx_I_u[1]
-            P_u = np.mean(I_u[s:e] * V_u[s:e])
-            P_v = np.mean(I_v[s:e] * V_v[s:e])
-            P_w = np.mean(I_w[s:e] * V_w[s:e])
+        #rise_idx_I_v, _ = self._utilSchmittTrigger(upper, lower, I_v)
+        #rise_idx_I_w, _ = self._utilSchmittTrigger(upper, lower, I_w)
+
+        if len(rise_idx_I_u) >= 3:
+            s, f, p = rise_idx_I_u[0], rise_idx_I_u[1], rise_idx_I_u[1]-rise_idx_I_u[0]
+            P_u = np.mean(I_u[s:f] * V_u[s:f])
+            s, f = s+int(p/3), f+int(4*p/3)
+            P_v = np.mean(I_v[s:f] * V_v[s:f])
+            s, f = s+int(p/3), f+int(1*p/3)
+            P_w = np.mean(I_w[s:f] * V_w[s:f])
         else:
             P_u, P_v, P_w = np.mean(I_u * V_u), np.mean(I_v * V_v), np.mean(I_w * V_w)
         P_tot = P_u + P_v + P_w

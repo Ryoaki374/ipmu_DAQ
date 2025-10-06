@@ -295,4 +295,26 @@ ENVIRONMENT {
 ```
 
 
+```mermaid
+erDiagram
+    GENERATOR ||--o{ QUEUE_BUF_Q : "writes to"
+    PROCESSOR }o--|| QUEUE_BUF_Q : "reads from"
+    PROCESSOR ||--o{ QUEUE_QUAD_Q : "writes to"
+    DAQ_GUI }o--|| QUEUE_QUAD_Q : "reads from"
+    PROCESSOR ||--|| HDF5_FILE : "writes to"
 
+    GENERATOR }o--|| STOP_EVENT : "observes"
+    PROCESSOR }o--|| STOP_EVENT : "observes"
+    DAQ_GUI }o--|| STOP_EVENT : "observes"
+
+    QUEUE_BUF_Q {
+        string name "buf_q"
+    }
+    QUEUE_QUAD_Q {
+        string name "quad_q"
+    }
+    STOP_EVENT {
+        string name "stop_event"
+    }
+
+```
