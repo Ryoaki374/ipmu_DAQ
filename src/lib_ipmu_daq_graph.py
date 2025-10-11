@@ -16,6 +16,7 @@ class DAQGUI:
         self.cfg = config
         self.quad_q = quad_q
         self.stop_event = stop_event
+        self.display_sec = self.cfg.gui.display_sec
 
     def run(self):
         """
@@ -39,8 +40,7 @@ class DAQGUI:
 
         # Timer for auto-stopping the application
         # A run_sec parameter should be added to config, assuming 30s for now
-        run_sec = 30 
-        QtCore.QTimer.singleShot(int(run_sec * 1000), self._stop)
+        QtCore.QTimer.singleShot(int(self.display_sec * 1000), self._stop)
         
         self.app.exec()
     
@@ -153,11 +153,14 @@ class DAQGUI:
         
         # --- Update plots with new data ---
         
-        # Scrolling window for waveforms
+        # Scrolling window for waveforms for IV
         if self.xs.size:
             start = self.xs[-1] - self.cfg.gui.plot_sec
-            self.plt_ab.setXRange(start, self.xs[-1], padding=0)
+            #self.plt_ab.setXRange(start, self.xs[-1], padding=0)
             self.plt_IV.setXRange(start, self.xs[-1], padding=0)
+        if self.xs.size:
+            start = self.xs[-1] - self.cfg.gui.plot_sec/10
+            self.plt_ab.setXRange(start, self.xs[-1], padding=0)
         
         # Scrolling window for time-series data
         history_sec = 10 # seconds

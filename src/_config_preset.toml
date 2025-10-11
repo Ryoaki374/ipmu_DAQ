@@ -3,15 +3,15 @@
 # ------------------------------------------------------------  IO / sampling
 [io]
 sample_rate    = 100_000   # Hz
-gen_chunk_sec  = 0.1       # s  corresponds to PROC_INTERVAL up to 0.05
-proc_interval  = 0.125     # s  process rate
+gen_chunk_sec  = 0.1       # [s]  corresponds to PROC_INTERVAL up to 0.05
+proc_interval  = 0.125     # [s]  process rate
 queue_depth    = 40        # raw AB backlog
 quad_depth     = 40        # processed backlog
 
 # ------------------------------------------------------------  encoder postproc
 [encoder_postproc]
 quadpulse_width = 0.00025  # width [s] assuming 4x given 1 rps
-threshold       = 2.5          # V logic threshold
+threshold       = 2.5      # V logic threshold
 
 # ------------------------------------------------------------  GUI
 [gui]

@@ -2,12 +2,6 @@ import dataclasses
 
 from pathlib import Path
 import numpy as np
-import time
-import queue
-import threading
-import h5py, pathlib
-from datetime import datetime
-from collections import deque
 
 try:
     import tomllib  # Python 3.11+
@@ -21,7 +15,7 @@ else:
     BASE_DIR = Path.cwd()
 
 CONFIG_PATH: Path = BASE_DIR / "_config_preset.toml"
-CONFIG_RUN_PATH: Path = BASE_DIR / "_config_preset.toml"  # driver だけを含む TOML 想定
+CONFIG_RUN_PATH: Path = BASE_DIR / "_config_preset.toml"
 RUNS_DIR: Path = BASE_DIR / "../runs"
 
 # ------------------------------ Configs ------------------------------
@@ -65,11 +59,18 @@ class DebugPowerConfig:
 
 @dataclasses.dataclass
 class DriverConfig:
-    t_DC: float
-    pps: float
-    step: float
+    device_com: str
+    target_speed_rps: float
+    current_init: int
+    electrical_angle_init: int
+    t_DC: int
+    pps: int
+    step: int
     rst: float
-    target_freq: float
+    ppsps: float
+    t_stablerot: int
+    t_excess_spindown: int
+    dir_rotation: int
 
 @dataclasses.dataclass
 class DependentConfig:

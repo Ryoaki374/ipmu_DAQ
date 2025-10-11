@@ -173,15 +173,15 @@ class Processor:
 
     def _genCommandFreq(self):
         drv, dep, io = self.cfg.driver, self.cfg.dependent, self.cfg.io
-        num_step = np.ceil((dep.num_pulses - drv.pps) * drv.target_freq / drv.step)
+        num_step = np.ceil((dep.num_pulses - drv.pps) * drv.target_speed_rps / drv.step)
         time_arr = np.arange(0, drv.t_DC + num_step * drv.rst + dep.stable_sec, io.proc_interval, dtype=np.float32)
         freq = np.zeros_like(time_arr)
         n_DC = int(round(drv.t_DC / io.proc_interval))
         n_rst = int(round(drv.rst / io.proc_interval))
         for i in range(int(num_step)):
             start, end = n_DC + i * n_rst, n_DC + (i + 1) * n_rst
-            freq[start:end] = drv.pps / dep.num_pulses + drv.target_freq / dep.num_pulses * drv.step * (i + 1)
-        freq[int(n_DC + n_rst * num_step):] = drv.target_freq
+            freq[start:end] = drv.pps / dep.num_pulses + drv.target_speed_rps / dep.num_pulses * drv.step * (i + 1)
+        freq[int(n_DC + n_rst * num_step):] = drv.target_speed_rps
         return time_arr, freq
 
     def _utilSchmittTrigger(self, upper, lower, current):
