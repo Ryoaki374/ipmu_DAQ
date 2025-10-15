@@ -22,9 +22,9 @@ class AEdriver():
         self.curr_acc = 0
         self.curr_stable = 0
     
-    def __del__(self):
-        self.ser.close()
-        print('closing serial port: ' + self.COM)
+    #def __del__(self):
+    #    self.ser.close()
+    #    print('closing serial port: ' + self.COM)
 
         
     def output_setting(self, output):
@@ -227,7 +227,8 @@ class AEdriver():
         cmd = '050030' + curr + checksum
         self.ser.write(binascii.a2b_hex(cmd))
         read = binascii.b2a_hex(self.ser.readline()).decode("ascii").replace(cmd,'')
-        if self.output: print('current: ' + str(current*10) + ' [mA]' + ', status: ' + str(read))
+        #if self.output: print('current: ' + str(current*10) + ' [mA]' + ', status: ' + str(read))
+        if self.output: print('current: ' + str(current) + '%' + ', status: ' + str(read))
         if return_bit: return read
     
     def rot_start(self,rot=0,return_bit=False):
@@ -302,13 +303,12 @@ class ExtendedAEdriver(AEdriver):
 
         self.tx_cmd(tx_packet)
         rx_response = self.rx_cmd(tx_packet, wait_ms=20, strip_echo=strip_echo)
-        
+
         return rx_response
 
     # --- Individual command methods with a unified interface ---
 
     def initial_position(self, position=200, return_bit=False):
-        
         hex_position = position.to_bytes(2, 'little')
         fixed = bytes([0x06, 0x01, 0x12])
         cmd_body = fixed + hex_position
@@ -343,8 +343,8 @@ class ExtendedAEdriver(AEdriver):
         rx_response = self.rx_cmd(tx_packet, wait_ms=20)
 
         rx_hex = rx_response.hex().upper()
-        if len(rx_hex) >= 10: # 5 bytes response expected
-            data_hex = rx_hex[6:10]
+        if len(rx_hex) >= 10: # 6 bytes response expected
+            data_hex = rx_hex[4:10]
             decimal_val = int.from_bytes(bytes.fromhex(data_hex), "little")
             return decimal_val
         else:
@@ -360,8 +360,8 @@ class ExtendedAEdriver(AEdriver):
         rx_response = self.rx_cmd(tx_packet, wait_ms=20)
 
         rx_hex = rx_response.hex().upper()
-        if len(rx_hex) >= 10: # 5 bytes response expected
-            data_hex = rx_hex[6:10]
+        if len(rx_hex) >= 10: # 6 bytes response expected
+            data_hex = rx_hex[4:10]
             decimal_val = int.from_bytes(bytes.fromhex(data_hex), "little")
             return decimal_val
         else:
@@ -377,9 +377,8 @@ class ExtendedAEdriver(AEdriver):
         
         rx_hex = rx_response.hex().upper()
         if len(rx_hex) >= 8: # 5 bytes response expected
-            data_hex = rx_hex[6:10]
-            print(rx_hex,data_hex)
-            decimal_val = int.from_bytes(bytes.fromhex(data_hex), "little")
+            data_hex = rx_hex[4:8]
+            decimal_val = int.from_bytes(bytes.fromhex(data_hex), "big")
             current_ma = decimal_val * 10
             return current_ma
         else:
@@ -405,8 +404,11 @@ class ExtendedAEdriver(AEdriver):
     def read_command_pulse_MCP100A(self):
         """Reads the command pulse for MCP100A as a 32-bit integer."""
         rx_packet = self.send_cmd(cmd='04014045', strip_echo=True)
-        if len(rx_packet) >= 4:
-            value = int.from_bytes(rx_packet[:4], 'little', signed=True)
+        rx_hex = rx_packet.hex().upper()
+        if len(rx_hex) >= 4:
+            data_hex = rx_hex[6:12]
+            value = int.from_bytes(bytes.fromhex(data_hex), 'big', signed=True)
+            print(rx_hex, value)
             return value
         else:
             return None
@@ -442,7 +444,7 @@ class ExtendedAEdriver(AEdriver):
         response_str = rx_packet.decode('ascii', errors='ignore').strip()
         return response_str
         
-    def highrate_speed_setting(self, pps: int, *, readback: bool = True, return_bit: bool = False):
+    def highrate_speed_setting(self, pps: int):
         """
         Sets the High-rate Speed (CMD=0x21) and optionally reads it back.
         
@@ -470,9 +472,24 @@ class ExtendedAEdriver(AEdriver):
 
         if self.output:
             print(f'High-rate speed setting: {pps} [pps], status: {ack_hex}')
-
-        if return_bit:
-            return ack_hex
+    
+    def current_on(self,current,return_bit=False):
+        # current: percent from 1 A
+        curr_byte = current.to_bytes(1, 'little')
+        
+        cmd_body = bytes([0x05, 0x00, 0x30]) + curr_byte
+        checksum = sum(cmd_body) & 0xFF
+        tx_packet = cmd_body + bytes([checksum])
+        
+        # Send command and get response
+        self.tx_cmd(tx_packet)
+        rx_response = self.rx_cmd(tx_packet, wait_ms=20)
+        read = rx_response.hex().upper()
+        
+        if self.output: 
+            print('current: ' + str(current) + '%' + ', status: ' + str(read))
+        if return_bit: 
+            return read
 
     def query(self):        
         # Execute read commands
@@ -494,7 +511,7 @@ class ExtendedAEdriver(AEdriver):
         
 class StableRotation():
         
-    def __init__(self, driver, pps, pps_fin, step, ppsps, initial_curr, electric_angle_init, rotshift_time, stablerot_duration, excess_spindown_time, DC_duration, rot=0, DEBUG=False):
+    def __init__(self, driver, pps, pps_fin, step, ppsps, initial_curr, electric_angle_init, rotshift_time, stablerot_duration, excess_spindown_time, DC_duration, rot=0,t_current_reduction_duration=0, DEBUG=False):
         
         print ("All process start time", datetime.datetime.now())
         
@@ -520,6 +537,7 @@ class StableRotation():
             raise
             
         self.rot = rot
+        self.t_current_reduction_duration = t_current_reduction_duration
         self.DEBUG = DEBUG
         
         self.rotshift_time = rotshift_time
@@ -599,16 +617,19 @@ class StableRotation():
                     break
                 self.driver.highrate_speed_setting(self.pps)
                 time.sleep(self.rotshift_time)
-                if self.DEBUG:
-                    self.driver.query()
+                #if self.DEBUG:
+                #    self.driver.query()
 
                 n = n + 1
             except KeyboardInterrupt:
                 break
 
-        print("\n")
-        print ("========================================================================================")
-        print ("Waiting extra command...")
-        print ("if not aplicable, please enter the stop()")
+        # Extend command
+        print(f"Waiting start reducing current in {self.t_current_reduction_duration} s")
+        time.sleep(self.t_current_reduction_duration)
+        for i in range(40, 0, -5):
+            # current reduction
+            self.driver.current_on(i)
+            time.sleep(self.t_current_reduction_duration)
     
     

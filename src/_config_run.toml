@@ -5,9 +5,18 @@ DEBUG = 0     # set True for jitter log
 
 # ------------------------------------------------------------  ASAHI Motor driver
 [driver]
-t_DC = 10        # DC duration before starting a rotation [s]
-pps = 0          # pulses at initial state
-step = 100       # num of pulse increment [pps]
-rst = 1          # pulse increment time [s]
-target_freq = 1  # target rotation frequency [rps]
+device_com = 'COM5'
+target_speed_rps = 1.0            # target rotation frequency [rps]
+current_init = 45                 # fraction to 1 A [%]
+electrical_angle_init = 200       # pulses to set 
+t_DC = 90                          # DC duration before starting a rotation [s]
+pps = 100                         # pulses at initial state
+step = 20                         # num of pulse increment [pps]
+rst = 1                           # pulse increment time [s]
+ppsps = 2000                      # Maximum acceleration, waiting step for pps per second => ppsps = pps*step
+dir_rotation = 1                  # 1 for
+t_current_reduction_duration = 60 # [s]
+step_current_reduction = [45, 40, 35, 30, 25, 20, 15, 14, 13, 12, 11, 10, 9, 8, 7 , 6, 5]  # [%]
+t_stablerot = 7200                # Time for stable rotation [s] 
+t_excess_spindown = 3600          # time for spindown, used to be 30' [s]
 # ------------------------------------------------------------

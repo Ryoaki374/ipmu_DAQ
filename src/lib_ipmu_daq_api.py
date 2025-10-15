@@ -22,6 +22,7 @@ class DAQApp:
         self.cfg = config
         self.buf_q = None
         self.quad_q = None
+        self.comvel_q = None
         self.stop_event = None
         self.h5f = None
         self.dset = None
@@ -29,6 +30,7 @@ class DAQApp:
         self.DEBUG = DEBUG
         self.logger = None
         self.log_q = None
+        self.log_listener = None
 
     def setup(self):
         if self.DEBUG:
@@ -41,8 +43,8 @@ class DAQApp:
         """Sets up shared resources for the application components."""
         self.buf_q = queue.Queue(maxsize=self.cfg.io.queue_depth)
         self.quad_q = queue.Queue(maxsize=self.cfg.io.quad_depth)
+        self.comvel_q = queue.Queue(maxsize=self.cfg.io.quad_depth)
         self.stop_event = threading.Event()
-        print("Shared resources (Queues, Stop Event) are set up.")
 
         if self.DEBUG:
             print("DEBUG mode is ON.")
@@ -76,7 +78,8 @@ class DAQApp:
         filepath = self.runs_dir / f"{timestamp}.h5"
 
         self.h5f = h5py.File(filepath, "w")
-        self.dset = self.h5f.create_dataset(
+        logs_group = self.h5f.create_group("logs")
+        self.dset = logs_group.create_dataset(
             "log",
             shape=(0, self.cfg.logging.log_data_num),
             maxshape=(None, self.cfg.logging.log_data_num),
@@ -84,6 +87,7 @@ class DAQApp:
             chunks=(self.cfg.logging.log_chunk, self.cfg.logging.log_data_num),
             compression="gzip"
         )
+        current_reduction_group = self.h5f.create_group("current_reduction")
         print(f"HDF5 dataset created at: {filepath}")
 
     def shutdown(self):

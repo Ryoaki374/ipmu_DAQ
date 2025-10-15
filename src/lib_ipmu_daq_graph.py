@@ -40,7 +40,7 @@ class DAQGUI:
 
         # Timer for auto-stopping the application
         # A run_sec parameter should be added to config, assuming 30s for now
-        QtCore.QTimer.singleShot(int(self.display_sec * 1000), self._stop)
+        # QtCore.QTimer.singleShot(int(self.display_sec * 1000), self._stop)
         
         self.app.exec()
     
@@ -57,7 +57,7 @@ class DAQGUI:
         layout.setColumnStretchFactor(1, 5)
 
         # Plot for RAW A/B signals
-        plt_ab = self.win.addPlot(row=0, col=0, title="RAW A / B")
+        plt_ab = self.win.addPlot(row=0, col=0, title="Encoder Raw Signal (red: A / blue: B)")
         self.curve_A = plt_ab.plot(pen=pg.mkPen("#ff4b00", width=3), stepMode="right")
         self.curve_B = plt_ab.plot(pen=pg.mkPen("#005aff", width=3), stepMode="right")
         plt_ab.setLabel("left", "Amplitude [V]")
@@ -65,9 +65,9 @@ class DAQGUI:
         plt_ab.setYRange(-0.5, self.cfg.debug_encoder.pulse_height + 0.5)
 
         # Plot for PhaseU I/V waveform
-        plt_IV = self.win.addPlot(row=2, col=0, title="PhaseU I / V")
-        self.curve_I = plt_IV.plot(pen=pg.mkPen("r", width=3))
-        self.curve_V = plt_IV.plot(pen=pg.mkPen("b", width=3))
+        plt_IV = self.win.addPlot(row=2, col=0, title="Current (Red) and Voltage (Blue) [Phase: U]")
+        self.curve_I = plt_IV.plot(pen=pg.mkPen("#ff4b00", width=3))
+        self.curve_V = plt_IV.plot(pen=pg.mkPen("#005aff", width=3))
         plt_IV.setLabel("left", "Amplitude [a.u.]")
         plt_IV.setLabel("bottom", "Time [s]")
         plt_IV.setYRange(-1.2, 1.2)
@@ -75,14 +75,14 @@ class DAQGUI:
         self.plt_IV = plt_IV # Store for updating range
 
         # Plot for Delta velocity
-        plt_cnt = self.win.addPlot(row=0, col=1, title="Delta Velocity")
+        plt_cnt = self.win.addPlot(row=0, col=1, title="Diff of Velocity")
         self.curve_cnt = plt_cnt.plot(pen=pg.mkPen("#03af7a", width=3))
-        plt_cnt.setLabel("left", "Diff [rps]")
+        plt_cnt.setLabel("left", "Diff of velocity [rps]")
         plt_cnt.setLabel("bottom", "Time [s]")
         self.plt_cnt = plt_cnt
 
         # Plot for Velocity
-        plt_vel = self.win.addPlot(row=1, col=1, title="Velocity")
+        plt_vel = self.win.addPlot(row=1, col=1, title="Measured and Command velocity")
         self.curve_vel = plt_vel.plot(pen=pg.mkPen("#00a0e9", width=3))
         self.curve_vel_ref = plt_vel.plot(pen=pg.mkPen("#a05aff", width=3), stepMode="right")
         plt_vel.setLabel("left", "Velocity [rps]")
@@ -90,7 +90,7 @@ class DAQGUI:
         self.plt_vel = plt_vel
 
         # Plot for Power
-        plt_pow = self.win.addPlot(row=2, col=1, title="Power")
+        plt_pow = self.win.addPlot(row=2, col=1, title="Total Power")
         self.curve_pow = plt_pow.plot(pen=pg.mkPen("#f6aa00", width=3))
         plt_pow.setLabel("left", "Power [W]")
         plt_pow.setLabel("bottom", "Time [s]")
@@ -150,7 +150,7 @@ class DAQGUI:
                 self.quad_q.task_done()
         except queue.Empty:
             pass # No new data
-        
+
         # --- Update plots with new data ---
         
         # Scrolling window for waveforms for IV

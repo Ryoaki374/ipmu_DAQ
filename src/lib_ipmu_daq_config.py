@@ -71,6 +71,8 @@ class DriverConfig:
     t_stablerot: int
     t_excess_spindown: int
     dir_rotation: int
+    t_current_reduction_duration: int
+    step_current_reduction: int
 
 @dataclasses.dataclass
 class DependentConfig:
@@ -160,10 +162,6 @@ class AppConfig:
 
 # ------------------------------ App ------------------------------
 def _loadConfig(path: Path = CONFIG_PATH) -> dict:
-    with path.open("rb") as f:
-        return tomllib.load(f)
-
-def _loadRun(path: Path = CONFIG_RUN_PATH) -> dict:
     with path.open("rb") as f:
         return tomllib.load(f)
 
