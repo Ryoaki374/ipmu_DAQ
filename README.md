@@ -52,13 +52,6 @@ Originally developed for the Breadboard Model (BBM) of our rotation mechanism. T
    pip install -e .  
 ```
 
-## Quick start
-Open any notebook in example_notebooks/ and run the cells. They demonstrate:  
-1. Discovering connected NI-DAQ devices  
-2. Configuring acquisition parameters  
-3. Streaming data to disk (HDF5 or CSV)  
-4. Live plotting and basic analysis   
-
 ## Contributing
 please add issues if you find bugs!
 
