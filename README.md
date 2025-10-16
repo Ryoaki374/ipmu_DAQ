@@ -1,17 +1,33 @@
 # ipmu_DAQ
 
-ipmu_DAQ is a lightweight Python library for controlling NI-DAQ hardware, logging acquired data, and performing real-time processing and visualization.  
-Originally developed for the Breadboard Model (BBM) of our rotation mechanism, but its modular design makes it reusable in other laboratory setups.
+This repository defines the arcitecture of the Python library for controlling NI-DAQ hardware, logging acquired data, and performing real-time processing and visualization.
+Originally developed for the Breadboard Model (BBM) of our rotation mechanism. The software treats each component e.g. motor control, data acquisition/generation, post-processing, and visualization as an independent class. Each process runs asynchronously on its own thread, and thread-safe queues are used for inter-class data transfer.
 
 ## Directory layout
-README.md            - project documentation  
-requirements.txt     - Python dependencies  
-data/                - saved measurement files  
-src/                 - library source code  
-    daq_controller/    - NI-DAQ control modules  
-    processing/        - post-processing utilities  
-    visualization/     - real-time plotting widgets  
-example_notebooks/   - Jupyter notebooks demonstrating workflows  
+```
+├─ README.md
+├─ requirements.txt
+├─ .gitignore
+├─ graph_preset.mplstyle # graph settings
+├─ runs/ # data dir
+├─ archive/ # previous versions
+├─ src/
+   ├─ _config_run.toml              # header file for each run
+   ├─ _config_preset.toml           # header file for post processing and GUI
+   ├─ lib_ipmu_daq_api.py           # lib for DAQApp
+   ├─ lib_ipmu_daq_acquisition.py   # lib for NI-DAQ
+   ├─ lib_ipmu_daq_config.py        # lib for I/O _config_preset.toml
+   ├─ lib_ipmu_daq_generator.py     # lib for debug
+   ├─ lib_ipmu_daq_graph.py         # lib for GUI
+   ├─ lib_ipmu_daq_process.py       # lib for post-processing
+   ├─ lib_ipmu_drv_command.py       # lib for motor control
+   ├─ lib_ipmu_drv_config.py        # lib for I/O _config_preset.toml
+   ├─ lib_plotdev.py                # lib for plot
+   ├─ class_AEdriver_rotation.py    # lib for motor control
+   ├─ dev_refresh_encoder_daq.ipynb # developing version
+   ├─ hdf2csv.ipynb                 # transform hdf to csv
+   └─ Integrated_motor_controller.ipynb # main notebook
+```
 
 ## Installation
 1. Clone the repository
@@ -22,13 +38,13 @@ example_notebooks/   - Jupyter notebooks demonstrating workflows
 
 2. (Optional) Create a virtual environment
 ```bash
-   python -m venv .venv  
+   python -m venv .venv
    source .venv/bin/activate     (Windows: .venv\Scripts\activate)  
 ```
 
 3. Install dependencies
 ```bash  
-   pip install -r requirements.txt  
+   pip install -r requirements.txt
 ```
 
 4. Install ipmu_DAQ in editable mode
@@ -48,35 +64,3 @@ please add issues if you find bugs!
 
 ## License
 MIT License (see LICENSE file)
-
-## Memo
-pip install pyqtgraph PyQt6
-
-
-| **速度目標 [rps]** | **1秒当たり [pulses / s]** | **1iterあたり [pulses]** | **カウント** | **再構成速度 (UP / DOWN) \[rps]** | **偏差 \[%]** |
-| ----------------- | -------------------------- | --------------------------- | ----------------------- | ------------------------------- | -------------------------- |
-| 0.1               | 204.8                      | 25.6                        | 26<br>25                | 0.102<br>0.09765625             | +1.56<br>−2.34             |
-| 0.2               | 409.6                      | 51.2                        | 52<br>51                | 0.203<br>0.19921875             | +1.56<br>−0.39             |
-| 0.3               | 614.4                      | 76.8                        | 77<br>76                | 0.301<br>0.296875               | +0.26<br>−1.04             |
-| 0.4               | 819.2                      | 102.4                       | 103<br>102              | 0.402<br>0.3984375              | +0.59<br>−0.39             |
-| 0.5               | 1 024.0                    | 128.0                       | 128<br>128              | 0.500<br>0.500                  | 0.00<br>0.00               |
-| 0.6               | 1 228.8                    | 153.6                       | 154<br>153              | 0.602<br>0.59765625             | +0.26<br>−0.39             |
-| 0.7               | 1 433.6                    | 179.2                       | 180<br>179              | 0.703<br>0.69921875             | +0.45<br>−0.11             |
-| 0.8               | 1 638.4                    | 204.8                       | 205<br>204              | 0.801<br>0.796875               | +0.10<br>−0.39             |
-| 0.9               | 1 843.2                    | 230.4                       | 231<br>230              | 0.902<br>0.8984375              | +0.26<br>−0.17             |
-| 1.0               | 2 048.0                    | 256.0                       | 256<br>256              | 1.000<br>1.000                  | 0.00<br>0.00               |
-
-
-| **速度目標 [rps]** | **1秒当たり [pulses / s]** | **1iterあたり [pulses]** | **カウント** | **再構成速度 (UP / DOWN) \[rps]** | **偏差 \[%]** |
-| ----------------- | -------------------------- | ------------------------------------ | ----------------------- | ------------------------------- | -------------------------- |
-| 0.1               | 204.8                      | 51.2                                 | 52<br>51                | 0.102<br>0.100                  | +1.56<br>−0.39             |
-| 0.2               | 409.6                      | 102.4                                | 103<br>102              | 0.201<br>0.199                  | +0.59<br>−0.39             |
-| 0.3               | 614.4                      | 153.6                                | 154<br>153              | 0.301<br>0.299                  | +0.26<br>−0.39             |
-| 0.4               | 819.2                      | 204.8                                | 205<br>204              | 0.400<br>0.398                  | +0.10<br>−0.39             |
-| 0.5               | 1 024.0                    | 256.0                                | 256<br>256              | 0.500<br>0.500                  | 0.00<br>0.00               |
-| 0.6               | 1 228.8                    | 307.2                                | 308<br>307              | 0.602<br>0.600                  | +0.26<br>−0.07             |
-| 0.7               | 1 433.6                    | 358.4                                | 359<br>358              | 0.701<br>0.699                  | +0.17<br>−0.11             |
-| 0.8               | 1 638.4                    | 409.6                                | 410<br>409              | 0.801<br>0.799                  | +0.10<br>−0.15             |
-| 0.9               | 1 843.2                    | 460.8                                | 461<br>460              | 0.900<br>0.898                  | +0.04<br>−0.17             |
-| 1.0               | 2 048.0                    | 512.0                                | 512<br>512              | 1.000<br>1.000                  | 0.00<br>0.00               |
-
