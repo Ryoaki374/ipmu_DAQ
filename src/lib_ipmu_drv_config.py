@@ -61,7 +61,7 @@ class AppConfig:
         # dependent
         target_speed_rpm = int(60*drv["target_speed_rps"])
         electrical_frequency = 36*drv["target_speed_rps"]
-        pps_fin = int(electrical_frequency*1000)
+        pps_fin = int(electrical_frequency*1000*0.994)
         # Total rotation time (=RUN_SEC) # added on 2025/05/27 by Taisei
         t_total = t_DC + (pps_fin-pps) / (step / rst) + t_stablerot + t_excess_spindown
 

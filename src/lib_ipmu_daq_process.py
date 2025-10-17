@@ -152,10 +152,10 @@ class Processor:
                     
 
         # --- Final flush less than 1024 data ---
-        if buf_hdf5_idx:
+        if buf_hdf5_idx != 0:
             n = self.dset.shape[0]
-            self.dset.resize(n + len(buf_hdf5), axis=0)
-            self.dset[n:] = buf_hdf5
+            self.dset.resize(n + len(buf_hdf5[:buf_hdf5_idx]), axis=0)
+            self.dset[n:] = buf_hdf5[:buf_hdf5_idx]
 
         if self.h5f:
             self.h5f.close()

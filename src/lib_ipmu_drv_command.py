@@ -80,7 +80,7 @@ class Command:
 
         # Call function
         self.loop_limit = 40_000
-        self.total_pulse = 36_000
+        self.total_pulse = int(36_000*0.994)
         self.driver.initialize()
         self.driver.operation_setting()
         self.driver.pulse_setting()
