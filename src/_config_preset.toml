@@ -4,13 +4,13 @@
 [io]
 sample_rate    = 100_000   # Hz
 gen_chunk_sec  = 0.1       # s  corresponds to PROC_INTERVAL up to 0.05
-proc_interval  = 0.125     # s  process rate
+proc_interval  = 0.139     # s  process rate
 queue_depth    = 40        # raw AB backlog
 quad_depth     = 40        # processed backlog
 
 # ------------------------------------------------------------  encoder postproc
 [encoder_postproc]
-quadpulse_width = 0.00025  # width [s] assuming 4x given 1 rps
+quadpulse_width = 0.00025      # width [s] assuming 4x given 1 rps
 threshold       = 2.5          # V logic threshold
 
 # ------------------------------------------------------------  GUI
@@ -23,14 +23,14 @@ pruning         = 100      # pruning length [s]
 # ------------------------------------------------------------  logging to h5
 [logging]
 log_chunk = 1024           # flush log queue every N data
-log_data_num = 4           # number of data columns (t, com, vel, power)
+log_data_num = 5           # number of data columns (t, com, vel, power_tot, power_sum)
 
 # ------------------------------------------------------------  encoder
 [debug_encoder]
 pulse_height    = 5.0          # V
 pulse_duty      = 0.5
 pulse_phase_A   = 0.0          # phase delay for encoder A [s]
-input_velocity  = 0.1          # rps
+input_velocity  = 0.1          # rps for debug
 
 # ------------------------------------------------------------  power supply
 [debug_power]

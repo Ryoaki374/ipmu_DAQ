@@ -98,9 +98,12 @@ class Processor:
             velocity = delta_cnt / self.cfg.io.proc_interval / 2048
 
             # get power
-            time_p, P_u, P_v, P_w, P_tot = self._getPower(t_blk, Iu_blk, Iv_blk, Iw_blk, Vu_blk, Vv_blk, Vw_blk, 0, -0.1)
+            time_p, P_u, P_v, P_w, P_tot_sum = self._getPower(t_blk, Iu_blk, Iv_blk, Iw_blk, Vu_blk, Vv_blk, Vw_blk, 0, -0.1)
             # extend power for instantaneous power array
-            P_tot_blk = np.full(len(t_blk[::100]), P_tot)
+            P_tot_sum_blk = np.full(len(t_blk[::100]), P_tot_sum)
+            # get power as triple of w phase
+            P_tot_w = 3*P_w
+            P_tot_w_blk = np.full(len(t_blk[::100]), P_tot_w)
 
             # slice ideal velocity
             #t_ref, v_ref = ideal_provider(t_blk[0], t_blk[-1])
@@ -116,40 +119,42 @@ class Processor:
                 now = time.perf_counter()
                 jitter = (now - last_ts) * 1e3
                 self.logger.info(
-                    "EPOCH = %f, wall = %6.2f ms, jitter = %6.2f ms  delta c=%+d, v=%6.3f, v_ref=%6.3f, time_p = %f, P_tot = %f",
+                    "EPOCH = %f, wall = %6.2f ms, jitter = %6.2f ms  delta c=%+d, v=%6.3f, v_ref=%6.3f, time_p = %f, P_tot_sum = %f, P_tot_w = %f",
                     now, jitter, (now - last_ts) * 1e3,
-                    delta_cnt, velocity, v_ref, time_p, P_tot
+                    delta_cnt, velocity, v_ref, time_p, P_tot_sum, P_tot_w
                 )
                 last_ts = now
 
             # ---------- TX to GUI ----------
             try:
-                self.quad_q.put_nowait((t_blk, a_blk, b_blk, quad_sig, t_blk[-1], cum_count, velocity, t_ref, v_ref, time_p, P_tot, Iu_blk, Vu_blk))
+                self.quad_q.put_nowait((t_blk, a_blk, b_blk, quad_sig, t_blk[-1], cum_count, velocity, t_ref, v_ref, time_p, P_tot_sum, P_tot_w, Iu_blk, Vu_blk))
             except queue.Full:
                 pass
             # ---------- append to HDF5 buffer ----------
-            buf_hdf5[buf_hdf5_idx] = (t_blk[-1], (v_ref[-1] if v_ref.size else 0.0), velocity, P_tot)
+            buf_hdf5[buf_hdf5_idx] = (t_blk[-1], (v_ref[-1] if v_ref.size else 0.0), velocity, P_tot_sum, P_tot_w)
             buf_hdf5_idx += 1
             if buf_hdf5_idx == buf_hdf5.shape[0]: # We have set the buf_hdf5 and its idx on the head of this code.
                 n = self.dset.shape[0]
                 self.dset.resize(n + len(buf_hdf5), axis=0)
                 self.dset[n:] = buf_hdf5
                 buf_hdf5_idx = 0
-            # --------- Flush to HDF5 when the DataStoreFlag is rise
-            try:
-                current = self.DataStoreFlag.get_nowait()
-                self.active_dset = self._addNewDatasetToHDF(current)
-            except queue.Empty:
-                pass
+
+            # --------- Flush to HDF5 when the DataStoreFlag is rise for current reduction ---------
+            if not self.DEBUG:
+                try:
+                    current = self.DataStoreFlag.get_nowait()
+                    self.active_dset = self._addNewDatasetToHDF(current)
+                except queue.Empty:
+                    pass
 
             if self.active_dset is not None:
                 try:
                     n = self.active_dset.shape[0]
                     self.active_dset.resize(n + len(t_blk[::100]), axis=0)
-                    self.active_dset[n:] = np.array((t_blk[::100],Iu_blk[::100],Vu_blk[::100],P_tot_blk)).T
+                    self.active_dset[n:] = np.array((t_blk[::100],Iu_blk[::100],Vu_blk[::100],P_tot_sum_blk, P_tot_w_blk)).T
                 except Exception as e:
                     print(f"An error occurred during HDF5 write: {e}")
-                    
+
 
         # --- Final flush less than 1024 data ---
         if buf_hdf5_idx != 0:
@@ -162,6 +167,7 @@ class Processor:
             print("HDF5 file closed by processor.")
         print("Processor loop finished.")
 
+    # --- utilities ---
     def _getPulseDirection(self, dA: np.ndarray, dB: np.ndarray, *, threshold: float, prev_A: bool | None = None, prev_B: bool | None = None) -> tuple[np.ndarray, bool, bool]:
         A = dA > threshold; B = dB > threshold
         if prev_A is None:  # first block -> old behaviour
@@ -212,17 +218,14 @@ class Processor:
         fall_idx = np.where(d == -1)[0] + 1     # 立ち下がり位置
         return rise_idx, fall_idx
 
+    # revised version (2025/11/17)
     def _getPower(self, time_arr, I_u, I_v, I_w, V_u, V_v, V_w, upper, lower):
         rise_idx_I_u, _ = self._utilSchmittTrigger(upper, lower, I_u)
-        #rise_idx_I_v, _ = self._utilSchmittTrigger(upper, lower, I_v)
-        #rise_idx_I_w, _ = self._utilSchmittTrigger(upper, lower, I_w)
 
-        if len(rise_idx_I_u) >= 3:
-            s, f, p = rise_idx_I_u[0], rise_idx_I_u[1], rise_idx_I_u[1]-rise_idx_I_u[0]
+        if len(rise_idx_I_u) >= 2:
+            s, f = rise_idx_I_u[0], rise_idx_I_u[1]
             P_u = np.mean(I_u[s:f] * V_u[s:f])
-            s, f = s+int(p/3), f+int(1*p/3)
             P_v = np.mean(I_v[s:f] * V_v[s:f])
-            s, f = s+int(p/3), f+int(1*p/3)
             P_w = np.mean(I_w[s:f] * V_w[s:f])
         else:
             P_u, P_v, P_w = np.mean(I_u * V_u), np.mean(I_v * V_v), np.mean(I_w * V_w)
@@ -236,7 +239,7 @@ class Processor:
     #        i1 = np.searchsorted(time_axis, t_end, side="left")
     #        return time_axis[i0:i1], velocity[i0:i1]
     #    return slicer
-    
+
     def _addNewDatasetToHDF(self, current: int):
         reduction_group = self.h5f['current_reduction']
         dataset_name = f"current_{current}"

@@ -91,7 +91,8 @@ class DAQGUI:
 
         # Plot for Power
         plt_pow = self.win.addPlot(row=2, col=1, title="Total Power")
-        self.curve_pow = plt_pow.plot(pen=pg.mkPen("#f6aa00", width=3))
+        self.curve_pow_tot = plt_pow.plot(pen=pg.mkPen("#f6aa00", width=3))
+        self.curve_pow_w = plt_pow.plot(pen=pg.mkPen("#ff66ff", width=3))
         plt_pow.setLabel("left", "Power [W]")
         plt_pow.setLabel("bottom", "Time [s]")
         self.plt_pow = plt_pow
@@ -113,14 +114,15 @@ class DAQGUI:
         self.yr_vel = np.empty(0, dtype=np.float32)
         
         self.xs_pow = np.empty(0, dtype=np.float32)
-        self.y_pow = np.empty(0, dtype=np.float32)
+        self.y_pow_tot = np.empty(0, dtype=np.float32)
+        self.y_pow_w = np.empty(0, dtype=np.float32)
 
     def _refresh(self):
         """Called by the QTimer to update plot data."""
         try:
             while True:
                 data = self.quad_q.get_nowait()
-                t_ax, pA, pB, qsig, t_end, cum_cnt, vel, t_ref, v_ref, time_p, P_tot, Iu_blk, Vu_blk = data
+                t_ax, pA, pB, qsig, t_end, cum_cnt, vel, t_ref, v_ref, time_p, P_tot_sum, P_tot_w, Iu_blk, Vu_blk = data
 
                 pruning = self.cfg.gui.pruning if self.cfg.gui.pruning >= 1 else 1
                 history = self.cfg.dependent.history
@@ -145,7 +147,8 @@ class DAQGUI:
                 
                 # Update power buffers
                 self.xs_pow = np.append(self.xs_pow, time_p)[-self.cfg.dependent.pow_history:]
-                self.y_pow = np.append(self.y_pow, P_tot)[-self.cfg.dependent.pow_history:]
+                self.y_pow_tot = np.append(self.y_pow_tot, P_tot_sum)[-self.cfg.dependent.pow_history:]
+                self.y_pow_w = np.append(self.y_pow_w, P_tot_w)[-self.cfg.dependent.pow_history:]
 
                 self.quad_q.task_done()
         except queue.Empty:
@@ -179,4 +182,5 @@ class DAQGUI:
         self.curve_cnt.setData(self.xs_cnt, self.y_cnt)
         self.curve_vel.setData(self.xs_vel, self.y_vel)
         self.curve_vel_ref.setData(self.xr_vel, self.yr_vel)
-        self.curve_pow.setData(self.xs_pow, self.y_pow)
+        self.curve_pow_tot.setData(self.xs_pow, self.y_pow_tot)
+        self.curve_pow_w.setData(self.xs_pow, self.y_pow_w)
