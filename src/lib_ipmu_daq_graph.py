@@ -65,7 +65,7 @@ class DAQGUI:
         plt_ab.setYRange(-0.5, self.cfg.debug_encoder.pulse_height + 0.5)
 
         # Plot for PhaseU I/V waveform
-        plt_IV = self.win.addPlot(row=2, col=0, title="Current (Red) and Voltage (Blue) [Phase: U]")
+        plt_IV = self.win.addPlot(row=2, col=0, title="Current (Red) and Voltage (Blue) [Phase: W]")
         self.curve_I = plt_IV.plot(pen=pg.mkPen("#ff4b00", width=3))
         self.curve_V = plt_IV.plot(pen=pg.mkPen("#005aff", width=3))
         plt_IV.setLabel("left", "Amplitude [a.u.]")
@@ -102,8 +102,8 @@ class DAQGUI:
         self.xs = np.empty(0, dtype=np.float32)
         self.ya = np.empty(0, dtype=np.float32)
         self.yb = np.empty(0, dtype=np.float32)
-        self.y_Iu = np.empty(0, dtype=np.float32)
-        self.y_Vu = np.empty(0, dtype=np.float32)
+        self.y_Iw = np.empty(0, dtype=np.float32)
+        self.y_Vw = np.empty(0, dtype=np.float32)
         
         self.xs_cnt = np.empty(0, dtype=np.float32)
         self.y_cnt = np.empty(0, dtype=np.float32)
@@ -122,7 +122,7 @@ class DAQGUI:
         try:
             while True:
                 data = self.quad_q.get_nowait()
-                t_ax, pA, pB, qsig, t_end, cum_cnt, vel, t_ref, v_ref, time_p, P_tot_sum, P_tot_w, Iu_blk, Vu_blk = data
+                t_ax, pA, pB, qsig, t_end, cum_cnt, vel, t_ref, v_ref, time_p, P_tot_sum, P_tot_w, Iw_blk, Vw_blk = data
 
                 pruning = self.cfg.gui.pruning if self.cfg.gui.pruning >= 1 else 1
                 history = self.cfg.dependent.history
@@ -131,8 +131,8 @@ class DAQGUI:
                 self.xs = np.concatenate((self.xs, t_ax[::pruning]))[-history:]
                 self.ya = np.concatenate((self.ya, pA[::pruning]))[-history:]
                 self.yb = np.concatenate((self.yb, pB[::pruning]))[-history:]
-                self.y_Iu = np.concatenate((self.y_Iu, Iu_blk[::pruning]))[-history:]
-                self.y_Vu = np.concatenate((self.y_Vu, Vu_blk[::pruning]))[-history:]
+                self.y_Iw = np.concatenate((self.y_Iw, Iw_blk[::pruning]))[-history:]
+                self.y_Vw = np.concatenate((self.y_Vw, Vw_blk[::pruning]))[-history:]
                 
                 # Update delta velocity buffers
                 self.xs_cnt = np.append(self.xs_cnt, t_end)[-self.cfg.dependent.count_history:]
@@ -177,8 +177,8 @@ class DAQGUI:
         # Set data on curves
         self.curve_A.setData(self.xs, self.ya)
         self.curve_B.setData(self.xs, self.yb)
-        self.curve_I.setData(self.xs, self.y_Iu)
-        self.curve_V.setData(self.xs, self.y_Vu)
+        self.curve_I.setData(self.xs, self.y_Iw)
+        self.curve_V.setData(self.xs, self.y_Vw)
         self.curve_cnt.setData(self.xs_cnt, self.y_cnt)
         self.curve_vel.setData(self.xs_vel, self.y_vel)
         self.curve_vel_ref.setData(self.xr_vel, self.yr_vel)

@@ -127,7 +127,7 @@ class Processor:
 
             # ---------- TX to GUI ----------
             try:
-                self.quad_q.put_nowait((t_blk, a_blk, b_blk, quad_sig, t_blk[-1], cum_count, velocity, t_ref, v_ref, time_p, P_tot_sum, P_tot_w, Iu_blk, Vu_blk))
+                self.quad_q.put_nowait((t_blk, a_blk, b_blk, quad_sig, t_blk[-1], cum_count, velocity, t_ref, v_ref, time_p, P_tot_sum, P_tot_w, Iw_blk, Vw_blk))
             except queue.Full:
                 pass
             # ---------- append to HDF5 buffer ----------
