@@ -23,7 +23,7 @@ pruning         = 100      # pruning length [s]
 # ------------------------------------------------------------  logging to h5
 [logging]
 log_chunk = 1024           # flush log queue every N data
-log_data_num = 5           # number of data columns (t, com, vel, power_tot, power_sum)
+log_data_num = 7           # number of data columns (t, com, vel, power_tot, power_sum)
 
 # ------------------------------------------------------------  encoder
 [debug_encoder]

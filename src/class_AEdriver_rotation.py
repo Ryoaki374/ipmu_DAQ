@@ -5,9 +5,9 @@ import binascii
 import datetime
 
 class AEdriver():
-    
+
     def __init__(self, COM, baudrate=38400):
-        # serial 
+        # serial
         self.COM = COM
         self.ser = serial.Serial(port = self.COM, \
                                 baudrate = 38400, \

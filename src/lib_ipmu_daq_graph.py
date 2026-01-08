@@ -64,6 +64,15 @@ class DAQGUI:
         plt_ab.setLabel("bottom", "Time [s]")
         plt_ab.setYRange(-0.5, self.cfg.debug_encoder.pulse_height + 0.5)
 
+        # Plot for Squared current
+        plt_squared = self.win.addPlot(row=1, col=0, title="Squared Current")
+        self.curve_I2u = plt_squared.plot(pen=pg.mkPen("#f6aa00", width=3))
+        self.curve_I2v = plt_squared.plot(pen=pg.mkPen("#a05aff", width=3))
+        self.curve_I2w = plt_squared.plot(pen=pg.mkPen("#03af7a", width=3))
+        plt_squared.setLabel("left", "Current^2 [A^2]")
+        plt_squared.setLabel("bottom", "Time [s]")
+        self.plt_squared = plt_squared
+
         # Plot for PhaseU I/V waveform
         plt_IV = self.win.addPlot(row=2, col=0, title="Current (Red) and Voltage (Blue) [Phase: U]")
         self.curve_I = plt_IV.plot(pen=pg.mkPen("#ff4b00", width=3))
@@ -92,7 +101,6 @@ class DAQGUI:
         # Plot for Power
         plt_pow = self.win.addPlot(row=2, col=1, title="Total Power")
         self.curve_pow_tot = plt_pow.plot(pen=pg.mkPen("#f6aa00", width=3))
-        #self.curve_pow_w = plt_pow.plot(pen=pg.mkPen("#ff66ff", width=3))
         plt_pow.setLabel("left", "Power [W]")
         plt_pow.setLabel("bottom", "Time [s]")
         self.plt_pow = plt_pow
@@ -117,12 +125,18 @@ class DAQGUI:
         self.y_pow_tot = np.empty(0, dtype=np.float32)
         self.y_pow_w = np.empty(0, dtype=np.float32)
 
+        self.xs_squared = np.empty(0, dtype=np.float32)
+        self.y_I2u = np.empty(0, dtype=np.float32)
+        self.y_I2v = np.empty(0, dtype=np.float32)
+        self.y_I2w = np.empty(0, dtype=np.float32)
+
+
     def _refresh(self):
         """Called by the QTimer to update plot data."""
         try:
             while True:
                 data = self.quad_q.get_nowait()
-                t_ax, pA, pB, qsig, t_end, cum_cnt, vel, t_ref, v_ref, time_p, P_tot_sum, Iu_blk, Vu_blk = data
+                t_ax, pA, pB, qsig, t_end, cum_cnt, vel, t_ref, v_ref, time_p, P_tot_sum, Iu_blk, Vu_blk, _I2u, _I2v, _I2w  = data
 
                 pruning = self.cfg.gui.pruning if self.cfg.gui.pruning >= 1 else 1
                 history = self.cfg.dependent.history
@@ -148,7 +162,12 @@ class DAQGUI:
                 # Update power buffers
                 self.xs_pow = np.append(self.xs_pow, time_p)[-self.cfg.dependent.pow_history:]
                 self.y_pow_tot = np.append(self.y_pow_tot, P_tot_sum)[-self.cfg.dependent.pow_history:]
-                #self.y_pow_w = np.append(self.y_pow_w, P_tot_w)[-self.cfg.dependent.pow_history:]
+
+                # Update squared current buffers
+                self.xs_squared = np.append(self.xs_squared, time_p)[-self.cfg.dependent.count_history:]
+                self.y_I2u = np.append(self.y_I2u, _I2u)[-self.cfg.dependent.count_history:]
+                self.y_I2v = np.append(self.y_I2v, _I2v)[-self.cfg.dependent.count_history:]
+                self.y_I2w = np.append(self.y_I2w, _I2w)[-self.cfg.dependent.count_history:]
 
                 self.quad_q.task_done()
         except queue.Empty:
@@ -173,13 +192,23 @@ class DAQGUI:
             self.plt_vel.setXRange(self.xs_vel[-1] - history_sec, self.xs_vel[-1], padding=0)
         if self.xs_pow.size:
             self.plt_pow.setXRange(self.xs_pow[-1] - history_sec, self.xs_pow[-1], padding=0)
+        if self.xs_squared.size:
+            self.plt_squared.setXRange(self.xs_squared[-1] - history_sec, self.xs_squared[-1], padding=0)
             
         # Set data on curves
+        # Encoder
         self.curve_A.setData(self.xs, self.ya)
         self.curve_B.setData(self.xs, self.yb)
+        # Phase U I/V
         self.curve_I.setData(self.xs, self.y_Iu)
         self.curve_V.setData(self.xs, self.y_Vu)
+        # Delta velocity
         self.curve_cnt.setData(self.xs_cnt, self.y_cnt)
         self.curve_vel.setData(self.xs_vel, self.y_vel)
         self.curve_vel_ref.setData(self.xr_vel, self.yr_vel)
+        # Power
         self.curve_pow_tot.setData(self.xs_pow, self.y_pow_tot)
+        # Squared current
+        self.curve_I2u.setData(self.xs_squared, self.y_I2u)
+        self.curve_I2v.setData(self.xs_squared, self.y_I2v)
+        self.curve_I2w.setData(self.xs_squared, self.y_I2w)
