@@ -54,7 +54,7 @@ class DAQGUI:
         """Creates the layout and all the plot items."""
         layout = self.win.ci.layout
         layout.setColumnStretchFactor(0, 4)
-        layout.setColumnStretchFactor(1, 5)
+        layout.setColumnStretchFactor(1, 4)
 
         # Plot for RAW A/B signals
         plt_ab = self.win.addPlot(row=0, col=0, title="Encoder Raw Signal (red: A / blue: B)")
@@ -64,17 +64,23 @@ class DAQGUI:
         plt_ab.setLabel("bottom", "Time [s]")
         plt_ab.setYRange(-0.5, self.cfg.debug_encoder.pulse_height + 0.5)
 
-        # Plot for Squared current
-        plt_squared = self.win.addPlot(row=1, col=0, title="Squared Current")
-        self.curve_I2u = plt_squared.plot(pen=pg.mkPen("#f6aa00", width=3))
-        self.curve_I2v = plt_squared.plot(pen=pg.mkPen("#a05aff", width=3))
-        self.curve_I2w = plt_squared.plot(pen=pg.mkPen("#03af7a", width=3))
-        plt_squared.setLabel("left", "Current^2 [A^2]")
-        plt_squared.setLabel("bottom", "Time [s]")
-        self.plt_squared = plt_squared
+        # Plot for Delta velocity
+        plt_cnt = self.win.addPlot(row=1, col=0, title="Diff of Velocity")
+        self.curve_cnt = plt_cnt.plot(pen=pg.mkPen("#03af7a", width=3))
+        plt_cnt.setLabel("left", "Diff of velocity [rps]")
+        plt_cnt.setLabel("bottom", "Time [s]")
+        self.plt_cnt = plt_cnt
+
+        # Plot for Velocity
+        plt_vel = self.win.addPlot(row=2, col=0, title="Measured and Command velocity")
+        self.curve_vel = plt_vel.plot(pen=pg.mkPen("#00a0e9", width=3))
+        self.curve_vel_ref = plt_vel.plot(pen=pg.mkPen("#a05aff", width=3), stepMode="right")
+        plt_vel.setLabel("left", "Velocity [rps]")
+        plt_vel.setLabel("bottom", "Time [s]")
+        self.plt_vel = plt_vel
 
         # Plot for PhaseU I/V waveform
-        plt_IV = self.win.addPlot(row=2, col=0, title="Current (Red) and Voltage (Blue) [Phase: U]")
+        plt_IV = self.win.addPlot(row=0, col=1, title="Current (Red) and Voltage (Blue) [Phase: U]")
         self.curve_I = plt_IV.plot(pen=pg.mkPen("#ff4b00", width=3))
         self.curve_V = plt_IV.plot(pen=pg.mkPen("#005aff", width=3))
         plt_IV.setLabel("left", "Amplitude [a.u.]")
@@ -83,27 +89,21 @@ class DAQGUI:
         self.plt_ab = plt_ab # Store for updating range
         self.plt_IV = plt_IV # Store for updating range
 
-        # Plot for Delta velocity
-        plt_cnt = self.win.addPlot(row=0, col=1, title="Diff of Velocity")
-        self.curve_cnt = plt_cnt.plot(pen=pg.mkPen("#03af7a", width=3))
-        plt_cnt.setLabel("left", "Diff of velocity [rps]")
-        plt_cnt.setLabel("bottom", "Time [s]")
-        self.plt_cnt = plt_cnt
-
-        # Plot for Velocity
-        plt_vel = self.win.addPlot(row=1, col=1, title="Measured and Command velocity")
-        self.curve_vel = plt_vel.plot(pen=pg.mkPen("#00a0e9", width=3))
-        self.curve_vel_ref = plt_vel.plot(pen=pg.mkPen("#a05aff", width=3), stepMode="right")
-        plt_vel.setLabel("left", "Velocity [rps]")
-        plt_vel.setLabel("bottom", "Time [s]")
-        self.plt_vel = plt_vel
-
         # Plot for Power
-        plt_pow = self.win.addPlot(row=2, col=1, title="Total Power")
+        plt_pow = self.win.addPlot(row=1, col=1, title="Total Power")
         self.curve_pow_tot = plt_pow.plot(pen=pg.mkPen("#f6aa00", width=3))
         plt_pow.setLabel("left", "Power [W]")
         plt_pow.setLabel("bottom", "Time [s]")
         self.plt_pow = plt_pow
+
+        # Plot for Squared current
+        plt_squared = self.win.addPlot(row=2, col=1, title="Squared Current")
+        self.curve_I2u = plt_squared.plot(pen=pg.mkPen("#f6aa00", width=3))
+        self.curve_I2v = plt_squared.plot(pen=pg.mkPen("#a05aff", width=3))
+        self.curve_I2w = plt_squared.plot(pen=pg.mkPen("#03af7a", width=3))
+        plt_squared.setLabel("left", "Current^2 [A^2]")
+        plt_squared.setLabel("bottom", "Time [s]")
+        self.plt_squared = plt_squared
 
     def _initBuffers(self):
         """Initializes numpy arrays to store plot data."""
