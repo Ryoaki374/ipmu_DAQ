@@ -90,24 +90,31 @@ class Processor:
             Vv_blk = np.array([ring_Vv.popleft() for _ in range(samples_proc)], dtype=np.float32)
             Vw_blk = np.array([ring_Vw.popleft() for _ in range(samples_proc)], dtype=np.float32)
 
+            pruning = 100
             # ---------- Process encoder ----------
             dir_log, last_A, last_B = self._getPulseDirection(a_blk, b_blk, threshold=self.cfg.encoder_postproc.threshold, prev_A=last_A, prev_B=last_B)
             quad_sig = self._genQuadPulse(t_blk, dir_log)
             delta_cnt = self._getPulseCount(dir_log)
             cum_count += delta_cnt
             velocity = delta_cnt / self.cfg.io.proc_interval / 2048
+            vel_blk = np.full(len(t_blk[::pruning]), velocity)
 
             # get power
             idx, time_p, P_u, P_v, P_w, P_tot_sum = self._getPower(t_blk, Iu_blk, Iv_blk, Iw_blk, Vu_blk, Vv_blk, Vw_blk, 0, -0.1)
             # extend power for instantaneous power array
-            P_tot_sum_blk = np.full(len(t_blk[::100]), P_tot_sum)
+            P_tot_sum_blk = np.full(len(t_blk[::pruning]), P_tot_sum)
+            P_u_blk = np.full(len(t_blk[::pruning]), P_u)
+            P_v_blk = np.full(len(t_blk[::pruning]), P_v)
+            P_w_blk = np.full(len(t_blk[::pruning]), P_w)
+
 
             # get squared current
             _I2u, _I2v, _I2w = self._getSquaredCurrent(Iu_blk, Iv_blk, Iw_blk, idx)
             
-            _I2u_blk = np.full(len(t_blk[::100]), _I2u)
-            _I2v_blk = np.full(len(t_blk[::100]), _I2v)
-            _I2w_blk = np.full(len(t_blk[::100]), _I2w)
+            _I2u_blk = np.full(len(t_blk[::pruning]), _I2u)
+            _I2v_blk = np.full(len(t_blk[::pruning]), _I2v)
+            _I2w_blk = np.full(len(t_blk[::pruning]), _I2w)
+            #_I2_blk = np.full(len(t_blk[::pruning]), _I2u+_I2v+_I2w)
 
             # slice ideal velocity
             t_ref += self.cfg.io.proc_interval
@@ -116,6 +123,7 @@ class Processor:
                 v_ref = np.array([v_buf])
             except queue.Empty:
                 pass
+            v_ref_blk = np.full(len(t_blk[::pruning]), v_ref)
 
 
             if self.DEBUG:
@@ -134,13 +142,25 @@ class Processor:
             except queue.Full:
                 pass
             # ---------- append to HDF5 buffer ----------
-            buf_hdf5[buf_hdf5_idx] = (t_blk[-1], (v_ref[-1] if v_ref.size else 0.0), velocity, P_tot_sum, _I2u, _I2v, _I2w)
-            buf_hdf5_idx += 1
-            if buf_hdf5_idx == buf_hdf5.shape[0]: # We have set the buf_hdf5 and its idx on the head of this code.
-                n = self.dset.shape[0]
-                self.dset.resize(n + len(buf_hdf5), axis=0)
-                self.dset[n:] = buf_hdf5
-                buf_hdf5_idx = 0
+            #buf_hdf5[buf_hdf5_idx] = (t_blk[-1], (v_ref[-1] if v_ref.size else 0.0), velocity, P_tot_sum, P_u, P_v, P_w, _I2u, _I2v, _I2w) # 7 elements as single value for acc
+            #buf_hdf5_idx += 1
+            #if buf_hdf5_idx == buf_hdf5.shape[0]: # We have set the buf_hdf5 and its idx on the head of this code.
+            #    n = self.dset.shape[0]
+            #    self.dset.resize(n + len(buf_hdf5), axis=0)
+            #    self.dset[n:] = buf_hdf5
+            #    buf_hdf5_idx = 0
+
+            # ---------- append to HDF5 buffer ---------- 20260130
+            if buf_hdf5 is not None:
+                try:
+                    n = self.dset.shape[0]
+                    self.dset.resize(n + len(t_blk[::pruning]), axis=0)
+                    #self.dset[n:] = np.array((t_blk[::pruning], v_ref_blk, vel_blk, Iu_blk[::pruning], Vu_blk[::pruning], P_tot_sum_blk, Iv_blk[::pruning], _I2u_blk, _I2v_blk, _I2w_blk,)).T
+                    self.dset[n:] = np.array((t_blk[::pruning], v_ref_blk, vel_blk, Iu_blk[::pruning], Vu_blk[::pruning], Iv_blk[::pruning], Vv_blk[::pruning], Iw_blk[::pruning], Vw_blk[::pruning], P_tot_sum_blk,)).T
+                except Exception as e:
+                    print(f"An error occurred during HDF5 write: {e}")
+                    
+
 
             # --------- Flush to HDF5 when the DataStoreFlag is rise for current reduction ---------
             if not self.DEBUG:
@@ -153,8 +173,9 @@ class Processor:
             if self.active_dset is not None:
                 try:
                     n = self.active_dset.shape[0]
-                    self.active_dset.resize(n + len(t_blk[::100]), axis=0)
-                    self.active_dset[n:] = np.array((t_blk[::100],Iu_blk[::100],Vu_blk[::100],P_tot_sum_blk, _I2u_blk, _I2v_blk, _I2w_blk)).T
+                    self.active_dset.resize(n + len(t_blk[::pruning]), axis=0)
+                    #self.active_dset[n:] = np.array((t_blk[::pruning],Iu_blk[::pruning],Vu_blk[::pruning], P_tot_sum_blk, P_u_blk, P_v_blk, P_w_blk, _I2u_blk, _I2v_blk, _I2w_blk,)).T # 10 elements as tod fos current reduction
+                    self.active_dset[n:] = np.array((t_blk[::pruning], v_ref_blk, vel_blk, Iu_blk[::pruning], Vu_blk[::pruning], Iv_blk[::pruning], Vv_blk[::pruning], Iw_blk[::pruning], Vw_blk[::pruning], P_tot_sum_blk,)).T # 10 elements as tod fos current reduction
                 except Exception as e:
                     print(f"An error occurred during HDF5 write: {e}")
 
@@ -266,8 +287,8 @@ class Processor:
 
         new_dset = reduction_group.create_dataset(
             dataset_name,
-            shape=(0, 6),
-            maxshape=(None, 6),
+            shape=(0, 10),
+            maxshape=(None, 10),
             dtype=np.float32,
             compression="gzip"
         )

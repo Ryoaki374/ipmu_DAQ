@@ -18,12 +18,12 @@ threshold       = 2.5          # V logic threshold
 plot_sec        = 0.15     # fixed x-axis window width [s] 1/(0.2*36) < 0.15, 1/(1*36) = 0.03 in 0.03 case pruning length might be too short
 gui_interval_ms = 50       # GUI update interval [ms] e.g. 50ms=20Hz
 display_sec     = 36_000   # 10 hour [s]
-pruning         = 100      # pruning length [s]
+pruning         = 10      # pruning length [s]
 
 # ------------------------------------------------------------  logging to h5
 [logging]
 log_chunk = 1024           # flush log queue every N data
-log_data_num = 7           # number of data columns (t, com, vel, power_tot, power_sum)
+log_data_num = 10           # number of data columns (t, com, vel, power_tot, _I2u, _I2v, _I2w)
 
 # ------------------------------------------------------------  encoder
 [debug_encoder]

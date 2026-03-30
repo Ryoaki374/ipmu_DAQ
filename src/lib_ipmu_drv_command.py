@@ -68,15 +68,12 @@ class Command:
     def run(self):
         # Write motor sequence here directly
         print ("All process start time", datetime.datetime.now(), "(*ゝ∀･)v")
-        try:
-            if self.initial_curr >= 50:
-                raise
-        except:
-            print ("Look at the value of current!")
+        if self.initial_curr >= 50:
             self.driver.stop()
             self.driver.initialize()
             self.driver.ser.close()
-            raise
+            raise ValueError(f"Look at the value of current! initial_curr={self.initial_curr}")
+        
 
         # Call function
         self.loop_limit = 40_000
@@ -86,15 +83,15 @@ class Command:
         self.driver.pulse_setting()
         self.driver.initial_position(position=self.electric_angle_init)
 
-        self.driver.highrate_speed_setting(self.pps)
-        self.driver.startup_speed_setting(self.pps)
-        self.driver.acc_rate_setting(self.ppsps)
+        self.driver.highrate_speed_setting(self.pps) # <-- 21h 高速速度データ設定
+        self.driver.startup_speed_setting(self.pps) # <-- 22h 起動速度データ設定
+        #self.driver.acc_rate_setting(self.ppsps) # <--- 23h 加減速率設定
         self.driver.complete_setting()
 
         self.driver.current_on(self.initial_curr)
         time.sleep(self.DC_duration) # DC Duration
 
-        self.driver.rot_start(rot=self.dir_rotation)
+        self.driver.rot_start(rot=self.dir_rotation) # AC ON
         time.sleep(self.rotshift_time)
         
         # Spin Up
@@ -113,9 +110,19 @@ class Command:
                 #if self.DEBUG:
                 #    self.driver.query()
 
-            except self.stop_event.is_set():
+            except Exception as e:
                 self._reset()
-        
+                raise
+
+        if self.stop_event.is_set():
+            self._reset()
+            return
+
+        #try:
+        if self.stop_event.wait(self.excess_spindown_time):
+            self._reset()
+            return
+
         # Current Reduction
         if self.stop_event.is_set():
             self._reset()
@@ -139,10 +146,17 @@ class Command:
                 except Exception as e:
                     print(f"An error occurred during current reduction: {e}")
                     break
+            
+            try:
+                if self.stop_event.wait(self.excess_spindown_time):
+                    self._reset()
+                    return
+            except Exception as e:
+                print(f"An error occurred during current reduction: {e}")
 
             self._reset()
 
-    def _reset(self, COM=None):
+    def _reset(self, COM=None,):
         if self.driver is None:
             COM = self.COM
             try:

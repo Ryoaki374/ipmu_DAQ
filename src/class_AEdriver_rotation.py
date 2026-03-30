@@ -5,9 +5,9 @@ import binascii
 import datetime
 
 class AEdriver():
-
+    
     def __init__(self, COM, baudrate=38400):
-        # serial
+        # serial 
         self.COM = COM
         self.ser = serial.Serial(port = self.COM, \
                                 baudrate = 38400, \
@@ -76,7 +76,7 @@ class AEdriver():
         if return_bit: return read
             
     def complete_setting(self,return_bit=False):
-        cmd = '0401393e'
+        cmd = '0404393e'
         self.ser.write(binascii.a2b_hex(cmd))
         read = binascii.b2a_hex(self.ser.readline()).decode("ascii").replace(cmd,'')
         if self.output: print('setting complete')
@@ -434,13 +434,13 @@ class ExtendedAEdriver(AEdriver):
 
     def read_idn_MCCA100A(self):
         """Reads the IDN string for MCCA100A."""
-        rx_packet = self.send_cmd(cmd='04000408', strip_echo=True)
+        rx_packet = self.send_cmd(cmd='04010409', strip_echo=True)
         response_str = rx_packet.decode('ascii', errors='ignore').strip()
         return response_str
 
     def read_idn_D5700(self):
         """Reads the IDN string for D5700."""
-        rx_packet = self.send_cmd(cmd='04010409', strip_echo=True)
+        rx_packet = self.send_cmd(cmd='04000408', strip_echo=True)
         response_str = rx_packet.decode('ascii', errors='ignore').strip()
         return response_str
         
