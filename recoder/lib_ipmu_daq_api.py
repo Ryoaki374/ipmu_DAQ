@@ -78,23 +78,14 @@ class DAQApp:
 
         self.h5f = h5py.File(filepath, "w")
         logs_group = self.h5f.create_group("logs")
-        # self.dset = logs_group.create_dataset(
-        #    "log",
-        #    shape=(0, 5),
-        #    maxshape=(None, 5),
-        #    dtype=np.float32,
-        #    chunks=(1024, 5),
-        #    compression="gzip",
-        # )
         self.dset = logs_group.create_dataset(
-            "log",
-            shape=(0, 3),
-            maxshape=(None, 3),
-            dtype=np.float32,
-            chunks=(1024, 3),
-            compression="gzip",
+           "log",
+           shape=(0, 5),
+           maxshape=(None, 5),
+           dtype=np.float32,
+           chunks=(1024, 5),
+           compression="gzip",
         )
-
         print(f"HDF5 dataset created at: {filepath}")
 
     def shutdown(self):
