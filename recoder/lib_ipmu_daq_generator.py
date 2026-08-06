@@ -3,6 +3,15 @@ import queue
 import threading
 import numpy as np
 
+from lib_ipmu_recoder_config import (
+    GEN_CHUNK_SEC,
+    ENCODER_PULSES_PER_REVOLUTION,
+    MOCK_INPUT_VELOCITY,
+    PULSE_HEIGHT,
+    SAMPLING_RATE,
+    SAMPLES_PER_GENERATED_CHUNK,
+)
+
 
 class Generator:
     """
@@ -22,17 +31,19 @@ class Generator:
         chunk_idx = 0
         next_t = time.perf_counter()
 
-        gen_chunk_sec = 0.2
-        n_samples_gen = int(10000 * gen_chunk_sec)
-        rel_axis_mock = rel_axis_mock = (
-            np.arange(n_samples_gen, dtype=np.float32) / 1000
+        gen_chunk_sec = GEN_CHUNK_SEC
+        rel_axis_mock = (
+            np.arange(SAMPLES_PER_GENERATED_CHUNK, dtype=np.float32)
+            / SAMPLING_RATE
         )
 
         while not self.stop_event.is_set():
             base = chunk_idx * gen_chunk_sec
             t_axis = rel_axis_mock + base
 
-            pulse_width = 1 / (1 * 512)  # [s]
+            pulse_width = 1 / (
+                MOCK_INPUT_VELOCITY * ENCODER_PULSES_PER_REVOLUTION
+            )
             pulse_phase_B = -pulse_width / 4
             pulse_A = self._genChunkPulse(t_axis, phase=0.0)
             pulse_B = self._genChunkPulse(t_axis, phase=pulse_phase_B)
@@ -64,6 +75,10 @@ class Generator:
 
     def _genChunkPulse(self, t: np.ndarray, phase: float) -> np.ndarray:
         """Generates a pulse wave chunk."""
-        pulse_width = 1 / (1 * 512)  # [s]
+        pulse_width = 1 / (
+            MOCK_INPUT_VELOCITY * ENCODER_PULSES_PER_REVOLUTION
+        )
         mod = (t + phase) % pulse_width
-        return np.where(mod < 0.5 * pulse_width, 5, 0.0).astype(np.float32)
+        return np.where(mod < 0.5 * pulse_width, PULSE_HEIGHT, 0.0).astype(
+            np.float32
+        )
