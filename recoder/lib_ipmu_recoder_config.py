@@ -1,7 +1,7 @@
 """Shared acquisition and quadrature-processing constants for ``recoder``."""
 
 # Change only this value to switch between the planned DAQ sample rates.
-SAMPLING_RATE = 10_000
+SAMPLING_RATE = 100_000
 
 PROCESS_INTERVAL = 0.2
 GEN_CHUNK_SEC = 0.2
