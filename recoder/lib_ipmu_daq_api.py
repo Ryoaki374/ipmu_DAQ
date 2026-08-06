@@ -8,6 +8,12 @@ from datetime import datetime
 
 import logging, logging.handlers
 
+from lib_ipmu_recoder_config import (
+    HDF5_CHUNK_SIZE,
+    HDF5_COLUMN_COUNT,
+    HDF5_COLUMN_NAMES,
+)
+
 # Import AppConfig from daq_config.py
 # from lib_ipmu_daq_config import AppConfig
 
@@ -79,13 +85,14 @@ class DAQApp:
         self.h5f = h5py.File(filepath, "w")
         logs_group = self.h5f.create_group("logs")
         self.dset = logs_group.create_dataset(
-           "log",
-           shape=(0, 5),
-           maxshape=(None, 5),
-           dtype=np.float32,
-           chunks=(1024, 5),
-           compression="gzip",
+            "log",
+            shape=(0, HDF5_COLUMN_COUNT),
+            maxshape=(None, HDF5_COLUMN_COUNT),
+            dtype=np.float32,
+            chunks=(HDF5_CHUNK_SIZE, HDF5_COLUMN_COUNT),
+            compression="gzip",
         )
+        self.dset.attrs["column_names"] = HDF5_COLUMN_NAMES
         print(f"HDF5 dataset created at: {filepath}")
 
     def shutdown(self):
