@@ -7,15 +7,7 @@ import h5py
 import numpy as np
 import logging
 
-from lib_ipmu_recoder_config import (
-    ENCODER_COUNTS_PER_REVOLUTION,
-    ENCODER_THRESHOLD,
-    PROCESS_INTERVAL,
-    PULSE_HEIGHT,
-    QUAD_PULSE_WIDTH,
-    SAMPLING_RATE,
-    SAMPLES_PER_PROCESS,
-)
+import lib_ipmu_recoder_config as config
 
 
 class Processor:
@@ -54,7 +46,8 @@ class Processor:
     def _processorLoop(self):
         """Processes raw data, saves logs, and sends results to the GUI queue."""
         t0 = time.perf_counter()
-        proc_interval = PROCESS_INTERVAL
+        proc_interval = config.PROCESS_INTERVAL
+        samples_per_process = int(config.SAMPLING_RATE * proc_interval)
         next_proc = time.perf_counter() + proc_interval
 
         last_epoch = 0.0
@@ -97,11 +90,11 @@ class Processor:
 
             next_proc += proc_interval
 
-            if len(ring_t) < SAMPLES_PER_PROCESS:
+            if len(ring_t) < samples_per_process:
                 continue
 
             # ----------Copy deque -> NumPy ----------
-            samples_proc = SAMPLES_PER_PROCESS
+            samples_proc = samples_per_process
             t_blk = np.array(
                 [ring_t.popleft() for _ in range(samples_proc)], dtype=np.float32
             )
@@ -125,7 +118,7 @@ class Processor:
             dir_log, last_A, last_B = self._getPulseDirection(
                 pulse_A_blk,
                 pulse_B_blk,
-                threshold=ENCODER_THRESHOLD,
+                threshold=config.ENCODER_THRESHOLD,
                 prev_A=last_A,
                 prev_B=last_B,
             )
@@ -133,7 +126,9 @@ class Processor:
             delta_cnt = self._getPulseCount(dir_log)
             cum_count += delta_cnt
             velocity = (
-                delta_cnt / proc_interval / ENCODER_COUNTS_PER_REVOLUTION
+                delta_cnt
+                / proc_interval
+                / config.ENCODER_COUNTS_PER_REVOLUTION
             )
 
             try:
@@ -224,11 +219,19 @@ class Processor:
         return np.sum(dir_log)
 
     def _genQuadPulse(self, t: np.ndarray, dir_log: np.ndarray) -> np.ndarray:
-        samples = int(QUAD_PULSE_WIDTH * SAMPLING_RATE)
+        samples = int(config.QUAD_PULSE_WIDTH * config.SAMPLING_RATE)
         if samples <= 0:
             return np.zeros_like(dir_log, dtype=np.float32)
-        base = np.full(samples, PULSE_HEIGHT, dtype=np.float32)
-        return np.convolve(dir_log, base, mode="full")[: len(t)]
+
+        # This is equivalent to convolution with a rectangular pulse, but is
+        # O(N) instead of O(N * samples).  The difference is substantial at
+        # 1 MHz, where the pulse width spans 250 samples.
+        cumulative = np.cumsum(dir_log, dtype=np.float32)
+        quad_sig = cumulative.copy()
+        if samples < len(quad_sig):
+            quad_sig[samples:] -= cumulative[:-samples]
+        quad_sig *= config.PULSE_HEIGHT
+        return quad_sig
 
     def _addNewDatasetToHDF(self, current: int):
         reduction_group = self.h5f["current_reduction"]

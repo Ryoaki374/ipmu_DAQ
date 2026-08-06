@@ -7,7 +7,7 @@ from itertools import islice
 import nidaqmx
 from nidaqmx.constants import AcquisitionType
 
-from lib_ipmu_recoder_config import SAMPLING_RATE, SAMPLES_PER_GENERATED_CHUNK
+import lib_ipmu_recoder_config as config
 
 
 class DataAquisition:
@@ -22,8 +22,8 @@ class DataAquisition:
         Continuously aquire data until the stop event is set.
         """
 
-        sample_rate = SAMPLING_RATE
-        n_samples_gen = SAMPLES_PER_GENERATED_CHUNK
+        sample_rate = config.SAMPLING_RATE
+        n_samples_gen = int(sample_rate * config.GEN_CHUNK_SEC)
 
         tp = self._genTimeAxis(sample_rate)
 
