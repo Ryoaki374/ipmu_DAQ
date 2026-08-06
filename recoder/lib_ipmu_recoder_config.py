@@ -24,6 +24,7 @@ HDF5_COLUMN_NAMES = (
     "pulse_B",
     "pulse_C",
     "pulse_D",
+    "quad_sig",
 )
 HDF5_COLUMN_COUNT = len(HDF5_COLUMN_NAMES)
 HDF5_CHUNK_SIZE = 1024

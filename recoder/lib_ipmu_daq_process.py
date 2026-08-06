@@ -173,6 +173,7 @@ class Processor:
                         pulse_B_blk[::pruning],
                         pulse_C_blk[::pruning],
                         pulse_D_blk[::pruning],
+                        quad_sig[::pruning],
                     )
                 ).T
             except Exception as e:
