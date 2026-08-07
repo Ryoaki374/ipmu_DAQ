@@ -7,6 +7,8 @@ from itertools import islice
 import nidaqmx
 from nidaqmx.constants import AcquisitionType
 
+import lib_ipmu_recoder_config as config
+
 
 class DataAquisition:
     def __init__(self, buf_q: queue.Queue, stop_event: threading.Event):
@@ -20,18 +22,15 @@ class DataAquisition:
         Continuously aquire data until the stop event is set.
         """
 
-        sample_rate = 10000
-        n_samples_gen = int(0.1 * sample_rate)
+        sample_rate = config.SAMPLING_RATE
+        n_samples_gen = int(sample_rate * config.GEN_CHUNK_SEC)
 
         tp = self._genTimeAxis(sample_rate)
 
         with nidaqmx.Task() as task:
-            # For Current
+            # Two pulse inputs, matching Generator's pulse_A, pulse_B order.
             task.ai_channels.add_ai_voltage_chan("cDAQ1Mod1/ai0")
             task.ai_channels.add_ai_voltage_chan("cDAQ1Mod1/ai1")
-            # For Voltage
-            task.ai_channels.add_ai_voltage_chan("cDAQ1Mod1/ai2")
-            task.ai_channels.add_ai_voltage_chan("cDAQ1Mod1/ai3")
             task.timing.cfg_samp_clk_timing(
                 rate=sample_rate,
                 sample_mode=AcquisitionType.CONTINUOUS,
@@ -53,8 +52,6 @@ class DataAquisition:
                             t_ax,
                             data[0],
                             data[1],
-                            data[2],
-                            data[3],
                         )
                     )
                 except queue.Full:

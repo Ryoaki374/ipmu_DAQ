@@ -7,6 +7,8 @@ import h5py
 import numpy as np
 import logging
 
+import lib_ipmu_recoder_config as config
+
 
 class Processor:
     """
@@ -44,39 +46,32 @@ class Processor:
     def _processorLoop(self):
         """Processes raw data, saves logs, and sends results to the GUI queue."""
         t0 = time.perf_counter()
-        proc_interval = 0.2
+        proc_interval = config.PROCESS_INTERVAL
+        samples_per_process = int(config.SAMPLING_RATE * proc_interval)
         next_proc = time.perf_counter() + proc_interval
 
-        buf_hdf5_idx = 0
         last_epoch = 0.0
         pruning = 1
         last_A = None
         last_B = None
-        t_ref = np.array([0.])
-        v_ref = np.array([0.])
+        cum_count = 0
 
         # python ring buffer
         ring_t: deque[np.float32] = deque()
-        ring_Iu: deque[np.float32] = deque()
-        ring_Iv: deque[np.float32] = deque()
-        ring_Vu: deque[np.float32] = deque()
-        ring_Vv: deque[np.float32] = deque()
+        ring_pulse_A: deque[np.float32] = deque()
+        ring_pulse_B: deque[np.float32] = deque()
 
         while not self.stop_event.is_set():
             try:
                 while True:
                     (
                         t,
-                        Iu,
-                        Iv,
-                        Vu,
-                        Vv,
+                        pulse_A,
+                        pulse_B,
                     ) = self.buf_q.get_nowait()
                     ring_t.extend(t)
-                    ring_Iu.extend(Iu)
-                    ring_Iv.extend(Iv)
-                    ring_Vu.extend(Vu)
-                    ring_Vv.extend(Vv)
+                    ring_pulse_A.extend(pulse_A)
+                    ring_pulse_B.extend(pulse_B)
                     self.buf_q.task_done()
             except queue.Empty:
                 pass
@@ -87,38 +82,63 @@ class Processor:
                 time.sleep(max(0, next_proc - now))
                 continue
 
-            if len(ring_t) < interval * 10000:
+            next_proc += proc_interval
+
+            if len(ring_t) < samples_per_process:
                 continue
 
             # ----------Copy deque -> NumPy ----------
-            samples_proc = int(interval * 10000)
+            samples_proc = samples_per_process
             t_blk = np.array(
                 [ring_t.popleft() for _ in range(samples_proc)], dtype=np.float32
             )
-            Iu_blk = np.array(
-                [ring_Iu.popleft() for _ in range(samples_proc)], dtype=np.float32
+            pulse_A_blk = np.array(
+                [ring_pulse_A.popleft() for _ in range(samples_proc)],
+                dtype=np.float32,
             )
-            Iv_blk = np.array(
-                [ring_Iv.popleft() for _ in range(samples_proc)], dtype=np.float32
+            pulse_B_blk = np.array(
+                [ring_pulse_B.popleft() for _ in range(samples_proc)],
+                dtype=np.float32,
             )
-            Vu_blk = np.array(
-                [ring_Vu.popleft() for _ in range(samples_proc)], dtype=np.float32
+            dir_log, last_A, last_B = self._getPulseDirection(
+                pulse_A_blk,
+                pulse_B_blk,
+                threshold=config.ENCODER_THRESHOLD,
+                prev_A=last_A,
+                prev_B=last_B,
             )
-            Vv_blk = np.array([ring_Vv.popleft() for _ in range(samples_proc)], dtype=np.float32)
-
-            dir_log, last_A, last_B = self._getPulseDirection(a_blk, b_blk, threshold=self.cfg.encoder_postproc.threshold, prev_A=last_A, prev_B=last_B)
             quad_sig = self._genQuadPulse(t_blk, dir_log)
             delta_cnt = self._getPulseCount(dir_log)
             cum_count += delta_cnt
-            velocity = delta_cnt / proc_interval / 2048
-            vel_blk = np.full(len(t_blk[::pruning]), velocity)
+            velocity = (
+                delta_cnt
+                / proc_interval
+                / config.ENCODER_COUNTS_PER_REVOLUTION
+            )
+
+            try:
+                self.quad_q.put_nowait(
+                    (
+                        t_blk,
+                        pulse_A_blk,
+                        pulse_B_blk,
+                        quad_sig,
+                        cum_count,
+                        velocity,
+                    )
+                )
+            except queue.Full:
+                pass
 
             if self.DEBUG:
                 # now = time.perf_counter()
                 jitter = (epoch - last_epoch) * 1e3
                 self.logger.info(
+                    "epoch=%f, jitter=%f ms, count=%d, velocity=%f rps",
                     epoch,
                     jitter,
+                    cum_count,
+                    velocity,
                 )
                 last_epoch = epoch
             # ---------- append to HDF5 buffer ----------
@@ -129,28 +149,14 @@ class Processor:
                 self.dset[n:] = np.array(
                     (
                         t_blk[::pruning],
-                        Iu_blk[::pruning],
-                        Vu_blk[::pruning],
-                        Iv_blk[::pruning],
-                        Vv_blk[::pruning],
+                        pulse_A_blk[::pruning],
+                        pulse_B_blk[::pruning],
+                        dir_log[::pruning],
+                        quad_sig[::pruning],
                     )
                 ).T
             except Exception as e:
                 print(f"An error occurred during HDF5 write: {e}")
-
-        # --- Final flush less than 1024 data ---
-        # if buf_hdf5_idx != 0:
-        n = self.dset.shape[0]
-        self.dset.resize(n + len(t_blk[::pruning]), axis=0)
-        self.dset[n:] = np.array(
-            (
-                t_blk[::pruning],
-                Iu_blk[::pruning],
-                Vu_blk[::pruning],
-                Iv_blk[::pruning],
-                Vv_blk[::pruning],
-            )
-        ).T
 
         if self.h5f:
             self.h5f.close()
@@ -197,14 +203,19 @@ class Processor:
         return np.sum(dir_log)
 
     def _genQuadPulse(self, t: np.ndarray, dir_log: np.ndarray) -> np.ndarray:
-        width = self.cfg.encoder_postproc.quadpulse_width
-        height = self.cfg.debug_encoder.pulse_height
-        sampling_rate = self.cfg.io.sample_rate
-        samples = int(width * sampling_rate)
+        samples = int(config.QUAD_PULSE_WIDTH * config.SAMPLING_RATE)
         if samples <= 0:
             return np.zeros_like(dir_log, dtype=np.float32)
-        base = np.full(samples, height, dtype=np.float32)
-        return np.convolve(dir_log, base, mode="full")[: len(t)]
+
+        # This is equivalent to convolution with a rectangular pulse, but is
+        # O(N) instead of O(N * samples).  The difference is substantial at
+        # 1 MHz, where the pulse width spans 250 samples.
+        cumulative = np.cumsum(dir_log, dtype=np.float32)
+        quad_sig = cumulative.copy()
+        if samples < len(quad_sig):
+            quad_sig[samples:] -= cumulative[:-samples]
+        quad_sig *= config.PULSE_HEIGHT
+        return quad_sig
 
     def _addNewDatasetToHDF(self, current: int):
         reduction_group = self.h5f["current_reduction"]
