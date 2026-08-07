@@ -151,6 +151,7 @@ class Processor:
                         t_blk[::pruning],
                         pulse_A_blk[::pruning],
                         pulse_B_blk[::pruning],
+                        dir_log[::pruning],
                         quad_sig[::pruning],
                     )
                 ).T
