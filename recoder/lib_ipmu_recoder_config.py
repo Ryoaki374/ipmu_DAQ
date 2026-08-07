@@ -20,8 +20,6 @@ HDF5_COLUMN_NAMES = (
     "time",
     "pulse_A",
     "pulse_B",
-    "pulse_C",
-    "pulse_D",
     "quad_sig",
 )
 HDF5_COLUMN_COUNT = len(HDF5_COLUMN_NAMES)

@@ -59,9 +59,7 @@ class Generator:
         pulse_phase_B = -pulse_width / 4
         pulse_A = self._genChunkPulse(t_axis, phase=0.0)
         pulse_B = self._genChunkPulse(t_axis, phase=pulse_phase_B)
-        pulse_C = pulse_A.copy()
-        pulse_D = pulse_B.copy()
-        return t_axis, pulse_A, pulse_B, pulse_C, pulse_D
+        return t_axis, pulse_A, pulse_B
 
     def _genChunkPulse(self, t: np.ndarray, phase: float) -> np.ndarray:
         """Generates a pulse wave chunk."""

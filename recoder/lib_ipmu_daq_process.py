@@ -60,8 +60,6 @@ class Processor:
         ring_t: deque[np.float32] = deque()
         ring_pulse_A: deque[np.float32] = deque()
         ring_pulse_B: deque[np.float32] = deque()
-        ring_pulse_C: deque[np.float32] = deque()
-        ring_pulse_D: deque[np.float32] = deque()
 
         while not self.stop_event.is_set():
             try:
@@ -70,14 +68,10 @@ class Processor:
                         t,
                         pulse_A,
                         pulse_B,
-                        pulse_C,
-                        pulse_D,
                     ) = self.buf_q.get_nowait()
                     ring_t.extend(t)
                     ring_pulse_A.extend(pulse_A)
                     ring_pulse_B.extend(pulse_B)
-                    ring_pulse_C.extend(pulse_C)
-                    ring_pulse_D.extend(pulse_D)
                     self.buf_q.task_done()
             except queue.Empty:
                 pass
@@ -106,15 +100,6 @@ class Processor:
                 [ring_pulse_B.popleft() for _ in range(samples_proc)],
                 dtype=np.float32,
             )
-            pulse_C_blk = np.array(
-                [ring_pulse_C.popleft() for _ in range(samples_proc)],
-                dtype=np.float32,
-            )
-            pulse_D_blk = np.array(
-                [ring_pulse_D.popleft() for _ in range(samples_proc)],
-                dtype=np.float32,
-            )
-
             dir_log, last_A, last_B = self._getPulseDirection(
                 pulse_A_blk,
                 pulse_B_blk,
@@ -166,8 +151,6 @@ class Processor:
                         t_blk[::pruning],
                         pulse_A_blk[::pruning],
                         pulse_B_blk[::pruning],
-                        pulse_C_blk[::pruning],
-                        pulse_D_blk[::pruning],
                         quad_sig[::pruning],
                     )
                 ).T

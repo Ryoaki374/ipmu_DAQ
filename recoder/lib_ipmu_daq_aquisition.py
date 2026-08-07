@@ -28,11 +28,9 @@ class DataAquisition:
         tp = self._genTimeAxis(sample_rate)
 
         with nidaqmx.Task() as task:
-            # Four pulse inputs, matching Generator's pulse_A ... pulse_D order.
+            # Two pulse inputs, matching Generator's pulse_A, pulse_B order.
             task.ai_channels.add_ai_voltage_chan("cDAQ1Mod1/ai0")
             task.ai_channels.add_ai_voltage_chan("cDAQ1Mod1/ai1")
-            task.ai_channels.add_ai_voltage_chan("cDAQ1Mod1/ai2")
-            task.ai_channels.add_ai_voltage_chan("cDAQ1Mod1/ai3")
             task.timing.cfg_samp_clk_timing(
                 rate=sample_rate,
                 sample_mode=AcquisitionType.CONTINUOUS,
@@ -54,8 +52,6 @@ class DataAquisition:
                             t_ax,
                             data[0],
                             data[1],
-                            data[2],
-                            data[3],
                         )
                     )
                 except queue.Full:
