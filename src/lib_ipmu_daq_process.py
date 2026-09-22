@@ -243,7 +243,8 @@ class Processor:
     def _getVelocityMovingAve(self, t: np.ndarray, dir_log: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """Calculates pulse-window velocity estimates across processing blocks."""
         window_pulses = self.cfg.encoder_postproc.movingave_window_pulses
-        window_step = self.cfg.encoder_postproc.movingave_overlap_pulses
+        overlap_pulses = self.cfg.encoder_postproc.movingave_overlap_pulses
+        window_step = window_pulses - overlap_pulses
 
         movingave_times = []
         movingave_velocities = []
