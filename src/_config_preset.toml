@@ -12,6 +12,10 @@ quad_depth     = 100        # processed backlog
 [encoder_postproc]
 quadpulse_width = 0.00025      # width [s] assuming 4x given 1 rps
 threshold       = 2.5          # V logic threshold
+# Use a power of two from 2 to 256.
+movingave_window_pulses  = 256
+# Use a value from 1 to movingave_window_pulses - 1.
+movingave_overlap_pulses = 1
 
 # ------------------------------------------------------------  GUI
 [gui]
@@ -23,7 +27,7 @@ pruning         = 10      # pruning length [s]
 # ------------------------------------------------------------  logging to h5
 [logging]
 log_chunk = 1024           # flush log queue every N data
-log_data_num = 15           # number of data columns
+log_data_num = 16           # number of data columns
 
 # ------------------------------------------------------------  encoder
 [debug_encoder]
