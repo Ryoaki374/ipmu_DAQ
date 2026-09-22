@@ -10,6 +10,8 @@ import logging
 # Import AppConfig from daq_config.py
 from lib_ipmu_daq_config import AppConfig
 
+PULSES_PER_REVOLUTION = 2048
+
 class Processor:
     """
     Processes raw signal data, logs it, and sends results to the GUI queue.
@@ -29,6 +31,9 @@ class Processor:
         self.logger = logger
         self.active_dset = None
         self.last_active_dset = None
+        self.movingave_time_q: deque[float] = deque()
+        self.movingave_direction_q: deque[int] = deque()
+        self.velocity_movingave = np.nan
 
     def run(self):
         """
@@ -96,8 +101,16 @@ class Processor:
             quad_sig = self._genQuadPulse(t_blk, dir_log)
             delta_cnt = self._getPulseCount(dir_log)
             cum_count += delta_cnt
-            velocity = delta_cnt / self.cfg.io.proc_interval / 2048
+            velocity = delta_cnt / self.cfg.io.proc_interval / PULSES_PER_REVOLUTION
             vel_blk = np.full(len(t_blk[::pruning]), velocity)
+
+            movingave_times, movingave_velocities = self._getVelocityMovingAve(t_blk, dir_log)
+            log_times = t_blk[::pruning]
+            velocity_movingave_blk = np.full(log_times.shape, self.velocity_movingave, dtype=np.float32)
+            for movingave_time, movingave_velocity in zip(movingave_times, movingave_velocities):
+                velocity_movingave_blk[log_times >= movingave_time] = movingave_velocity
+            if movingave_velocities.size:
+                self.velocity_movingave = float(movingave_velocities[-1])
 
             # get power
             idx, time_p, P_u, P_v, P_w, P_tot_sum = self._getPower(t_blk, Iu_blk, Iv_blk, Iw_blk, Vu_blk, Vv_blk, Vw_blk, 0, -0.1)
@@ -142,15 +155,15 @@ class Processor:
                 now = time.perf_counter()
                 jitter = (now - last_ts) * 1e3
                 self.logger.info(
-                    "EPOCH = %f, wall = %6.2f ms, jitter = %6.2f ms  delta c=%+d, v=%6.3f, v_ref=%6.3f, time_p = %f, P_tot = %f, _Ju = %f, _Jv = %f, _Jw = %f",
+                    "EPOCH = %f, wall = %6.2f ms, jitter = %6.2f ms  delta c=%+d, v=%6.3f, v_movingave=%6.3f, v_ref=%6.3f, time_p = %f, P_tot = %f, _Ju = %f, _Jv = %f, _Jw = %f",
                     now, jitter, (now - last_ts) * 1e3,
-                    delta_cnt, velocity, v_ref, time_p, P_tot_sum, _Ju, _Jv, _Jw
+                    delta_cnt, velocity, self.velocity_movingave, v_ref, time_p, P_tot_sum, _Ju, _Jv, _Jw
                 )
                 last_ts = now
 
             # ---------- TX to GUI ----------
             try:
-                self.quad_q.put_nowait((t_blk, a_blk, b_blk, quad_sig, t_blk[-1], cum_count, velocity, t_ref, v_ref, time_p, P_tot_sum, _Ju, _Jv, _Jw, _J_tot[-1]))
+                self.quad_q.put_nowait((t_blk, a_blk, b_blk, quad_sig, t_blk[-1], cum_count, velocity, t_ref, v_ref, time_p, P_tot_sum, _Ju, _Jv, _Jw, _J_tot[-1], movingave_times, movingave_velocities))
             except queue.Full:
                 pass
             # ---------- append to HDF5 buffer ----------
@@ -168,7 +181,7 @@ class Processor:
                     n = self.dset.shape[0]
                     self.dset.resize(n + len(t_blk[::pruning]), axis=0)
                     #self.dset[n:] = np.array((t_blk[::pruning], v_ref_blk, vel_blk, Iu_blk[::pruning], Vu_blk[::pruning], P_tot_sum_blk, Iv_blk[::pruning], _I2u_blk, _I2v_blk, _I2w_blk,)).T
-                    self.dset[n:] = np.array((t_blk[::pruning], v_ref_blk, vel_blk, Iu_blk[::pruning], Vu_blk[::pruning], Iv_blk[::pruning], Vv_blk[::pruning], Iw_blk[::pruning], Vw_blk[::pruning], P_tot_sum_blk, _Ju_blk, _Jv_blk, _Jw_blk, _J_tot, a_blk[::pruning])).T
+                    self.dset[n:] = np.array((t_blk[::pruning], v_ref_blk, vel_blk, Iu_blk[::pruning], Vu_blk[::pruning], Iv_blk[::pruning], Vv_blk[::pruning], Iw_blk[::pruning], Vw_blk[::pruning], P_tot_sum_blk, _Ju_blk, _Jv_blk, _Jw_blk, _J_tot, a_blk[::pruning], velocity_movingave_blk)).T
                 except Exception as e:
                     print(f"An error occurred during HDF5 write: {e}")
                     
@@ -187,7 +200,7 @@ class Processor:
                     n = self.active_dset.shape[0]
                     self.active_dset.resize(n + len(t_blk[::pruning]), axis=0)
                     #self.active_dset[n:] = np.array((t_blk[::pruning],Iu_blk[::pruning],Vu_blk[::pruning], P_tot_sum_blk, P_u_blk, P_v_blk, P_w_blk, _I2u_blk, _I2v_blk, _I2w_blk,)).T # 10 elements as tod fos current reduction
-                    self.active_dset[n:] = np.array((t_blk[::pruning], v_ref_blk, vel_blk, Iu_blk[::pruning], Vu_blk[::pruning], Iv_blk[::pruning], Vv_blk[::pruning], Iw_blk[::pruning], Vw_blk[::pruning], P_tot_sum_blk, _Ju_blk, _Jv_blk, _Jw_blk, _J_tot, a_blk[::pruning])).T # 10 elements as tod fos current reduction
+                    self.active_dset[n:] = np.array((t_blk[::pruning], v_ref_blk, vel_blk, Iu_blk[::pruning], Vu_blk[::pruning], Iv_blk[::pruning], Vv_blk[::pruning], Iw_blk[::pruning], Vw_blk[::pruning], P_tot_sum_blk, _Ju_blk, _Jv_blk, _Jw_blk, _J_tot, a_blk[::pruning], velocity_movingave_blk)).T
                 except Exception as e:
                     print(f"An error occurred during HDF5 write: {e}")
 
@@ -217,6 +230,46 @@ class Processor:
 
     def _getPulseCount(self, dir_log: np.ndarray) -> int:
         return np.sum(dir_log)
+
+    def _getVelocityMovingAve(self, t: np.ndarray, dir_log: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Calculates pulse-window velocity estimates across processing blocks."""
+        event_indices = np.flatnonzero(dir_log)
+        for event_index in event_indices:
+            self.movingave_time_q.append(float(t[event_index]))
+            self.movingave_direction_q.append(int(dir_log[event_index]))
+
+        window_pulses = self.cfg.encoder_postproc.movingave_window_pulses
+        overlap_pulses = self.cfg.encoder_postproc.movingave_overlap_pulses
+        window_step = window_pulses - overlap_pulses
+
+        movingave_times = []
+        movingave_velocities = []
+        while len(self.movingave_time_q) >= window_pulses + 1:
+            event_times = np.fromiter(
+                self.movingave_time_q,
+                dtype=np.float64,
+                count=window_pulses + 1,
+            )
+            event_directions = np.fromiter(
+                self.movingave_direction_q,
+                dtype=np.int8,
+                count=window_pulses + 1,
+            )
+            elapsed_time = event_times[-1] - event_times[0]
+            signed_pulse_count = np.sum(event_directions[1:])
+            velocity_movingave = signed_pulse_count / elapsed_time / PULSES_PER_REVOLUTION
+
+            movingave_times.append(event_times[-1])
+            movingave_velocities.append(velocity_movingave)
+
+            for _ in range(window_step):
+                self.movingave_time_q.popleft()
+                self.movingave_direction_q.popleft()
+
+        return (
+            np.asarray(movingave_times, dtype=np.float32),
+            np.asarray(movingave_velocities, dtype=np.float32),
+        )
 
     def _genQuadPulse(self, t: np.ndarray, dir_log: np.ndarray) -> np.ndarray:
         width = self.cfg.encoder_postproc.quadpulse_width
