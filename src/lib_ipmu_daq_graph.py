@@ -76,6 +76,7 @@ class DAQGUI:
         plt_vel.addLegend()
         self.curve_vel = plt_vel.plot(pen=pg.mkPen("#00a0e9", width=3), name="Measured")
         self.curve_vel_movingave = plt_vel.plot(pen=pg.mkPen("#d62728", width=3), name="Moving average")
+        self.curve_vel_movingave.setZValue(10)
         self.curve_vel_ref = plt_vel.plot(pen=pg.mkPen("#a05aff", width=3), stepMode="right", name="Command")
         plt_vel.setLabel("left", "Velocity [rps]")
         plt_vel.setLabel("bottom", "Time [s]")

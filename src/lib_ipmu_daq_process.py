@@ -34,7 +34,8 @@ class Processor:
         self.last_active_dset = None
         self.movingave_time_q: deque[float] = deque()
         self.movingave_direction_q: deque[int] = deque()
-        self.velocity_movingave = np.nan
+        self.movingave_startup_count = 0
+        self.velocity_movingave = 0.0
 
     def run(self):
         """
@@ -241,17 +242,24 @@ class Processor:
 
     def _getVelocityMovingAve(self, t: np.ndarray, dir_log: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """Calculates pulse-window velocity estimates across processing blocks."""
-        event_indices = np.flatnonzero(dir_log)
-        for event_index in event_indices:
-            self.movingave_time_q.append(float(t[event_index]))
-            self.movingave_direction_q.append(int(dir_log[event_index]))
-
         window_pulses = self.cfg.encoder_postproc.movingave_window_pulses
         overlap_pulses = self.cfg.encoder_postproc.movingave_overlap_pulses
         window_step = window_pulses - overlap_pulses
 
         movingave_times = []
         movingave_velocities = []
+
+        event_indices = np.flatnonzero(dir_log)
+        for event_index in event_indices:
+            event_time = float(t[event_index])
+            self.movingave_time_q.append(event_time)
+            self.movingave_direction_q.append(int(dir_log[event_index]))
+
+            if self.movingave_startup_count < window_pulses:
+                movingave_times.append(event_time)
+                movingave_velocities.append(0.0)
+                self.movingave_startup_count += 1
+
         while len(self.movingave_time_q) >= window_pulses + 1:
             event_times = np.fromiter(
                 self.movingave_time_q,
