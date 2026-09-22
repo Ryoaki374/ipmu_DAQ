@@ -26,6 +26,7 @@ class DAQApp:
         self.stop_event = None
         self.h5f = None
         self.dset = None
+        self.movingave_dset = None
         self.runs_dir = None
         self.DEBUG = DEBUG
         self.logger = None
@@ -87,6 +88,17 @@ class DAQApp:
             chunks=(self.cfg.logging.log_chunk, self.cfg.logging.log_data_num),
             compression="gzip"
         )
+        moving_average_group = self.h5f.create_group("moving_average")
+        self.movingave_dset = moving_average_group.create_dataset(
+            "data",
+            shape=(0, 2),
+            maxshape=(None, 2),
+            dtype=np.float32,
+            chunks=(self.cfg.logging.log_chunk, 2),
+            compression="gzip"
+        )
+        self.movingave_dset.attrs["columns"] = ["rel_time", "velocity"]
+
         current_reduction_group = self.h5f.create_group("current_reduction")
         print(f"HDF5 dataset created at: {filepath}")
 
