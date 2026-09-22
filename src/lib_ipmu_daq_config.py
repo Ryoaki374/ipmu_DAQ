@@ -44,6 +44,8 @@ class LoggingConfig:
 class EncoderPostProcConfig:
     quadpulse_width: float
     threshold: float
+    movingave_window_pulses: int
+    movingave_overlap_pulses: int
 
 @dataclasses.dataclass
 class DebugEncoderConfig:
