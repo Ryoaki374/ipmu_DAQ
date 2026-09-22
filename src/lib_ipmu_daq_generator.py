@@ -32,7 +32,7 @@ class Generator:
         while not self.stop_event.is_set():
             base = chunk_idx * gen_chunk_sec
             t_axis = rel_axis_mock + base
-
+            
             pulse_A = self._genChunkPulse(t_axis, phase=self.cfg.debug_encoder.pulse_phase_A)
             pulse_B = self._genChunkPulse(t_axis, phase=self.cfg.dependent.pulse_phase_B)
 
