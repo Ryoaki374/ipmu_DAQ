@@ -26,6 +26,7 @@ class Processor:
         #self.runs_dir = runs_dir
         self.h5f = h5f
         self.dset = dset
+        self.movingave_dset = self.h5f["moving_average/data"] if self.h5f is not None else None
         self.DataStoreFlag = DataStoreFlag
         self.DEBUG = debug
         self.logger = logger
@@ -105,10 +106,6 @@ class Processor:
             vel_blk = np.full(len(t_blk[::pruning]), velocity)
 
             movingave_times, movingave_velocities = self._getVelocityMovingAve(t_blk, dir_log)
-            log_times = t_blk[::pruning]
-            velocity_movingave_blk = np.full(log_times.shape, self.velocity_movingave, dtype=np.float32)
-            for movingave_time, movingave_velocity in zip(movingave_times, movingave_velocities):
-                velocity_movingave_blk[log_times >= movingave_time] = movingave_velocity
             if movingave_velocities.size:
                 self.velocity_movingave = float(movingave_velocities[-1])
 
@@ -166,6 +163,17 @@ class Processor:
                 self.quad_q.put_nowait((t_blk, a_blk, b_blk, quad_sig, t_blk[-1], cum_count, velocity, t_ref, v_ref, time_p, P_tot_sum, _Ju, _Jv, _Jw, _J_tot[-1], movingave_times, movingave_velocities))
             except queue.Full:
                 pass
+
+            # ---------- append moving-average results to HDF5 ----------
+            if self.movingave_dset is not None and movingave_velocities.size:
+                try:
+                    movingave_rows = np.column_stack((movingave_times, movingave_velocities))
+                    n = self.movingave_dset.shape[0]
+                    self.movingave_dset.resize(n + len(movingave_rows), axis=0)
+                    self.movingave_dset[n:] = movingave_rows
+                except Exception as e:
+                    print(f"An error occurred during moving-average HDF5 write: {e}")
+
             # ---------- append to HDF5 buffer ----------
             #buf_hdf5[buf_hdf5_idx] = (t_blk[-1], (v_ref[-1] if v_ref.size else 0.0), velocity, P_tot_sum, P_u, P_v, P_w, _I2u, _I2v, _I2w) # 7 elements as single value for acc
             #buf_hdf5_idx += 1
@@ -181,7 +189,7 @@ class Processor:
                     n = self.dset.shape[0]
                     self.dset.resize(n + len(t_blk[::pruning]), axis=0)
                     #self.dset[n:] = np.array((t_blk[::pruning], v_ref_blk, vel_blk, Iu_blk[::pruning], Vu_blk[::pruning], P_tot_sum_blk, Iv_blk[::pruning], _I2u_blk, _I2v_blk, _I2w_blk,)).T
-                    self.dset[n:] = np.array((t_blk[::pruning], v_ref_blk, vel_blk, Iu_blk[::pruning], Vu_blk[::pruning], Iv_blk[::pruning], Vv_blk[::pruning], Iw_blk[::pruning], Vw_blk[::pruning], P_tot_sum_blk, _Ju_blk, _Jv_blk, _Jw_blk, _J_tot, a_blk[::pruning], velocity_movingave_blk)).T
+                    self.dset[n:] = np.array((t_blk[::pruning], v_ref_blk, vel_blk, Iu_blk[::pruning], Vu_blk[::pruning], Iv_blk[::pruning], Vv_blk[::pruning], Iw_blk[::pruning], Vw_blk[::pruning], P_tot_sum_blk, _Ju_blk, _Jv_blk, _Jw_blk, _J_tot, a_blk[::pruning])).T
                 except Exception as e:
                     print(f"An error occurred during HDF5 write: {e}")
                     
@@ -200,7 +208,7 @@ class Processor:
                     n = self.active_dset.shape[0]
                     self.active_dset.resize(n + len(t_blk[::pruning]), axis=0)
                     #self.active_dset[n:] = np.array((t_blk[::pruning],Iu_blk[::pruning],Vu_blk[::pruning], P_tot_sum_blk, P_u_blk, P_v_blk, P_w_blk, _I2u_blk, _I2v_blk, _I2w_blk,)).T # 10 elements as tod fos current reduction
-                    self.active_dset[n:] = np.array((t_blk[::pruning], v_ref_blk, vel_blk, Iu_blk[::pruning], Vu_blk[::pruning], Iv_blk[::pruning], Vv_blk[::pruning], Iw_blk[::pruning], Vw_blk[::pruning], P_tot_sum_blk, _Ju_blk, _Jv_blk, _Jw_blk, _J_tot, a_blk[::pruning], velocity_movingave_blk)).T
+                    self.active_dset[n:] = np.array((t_blk[::pruning], v_ref_blk, vel_blk, Iu_blk[::pruning], Vu_blk[::pruning], Iv_blk[::pruning], Vv_blk[::pruning], Iw_blk[::pruning], Vw_blk[::pruning], P_tot_sum_blk, _Ju_blk, _Jv_blk, _Jw_blk, _J_tot, a_blk[::pruning])).T
                 except Exception as e:
                     print(f"An error occurred during HDF5 write: {e}")
 
