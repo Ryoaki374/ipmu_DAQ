@@ -73,8 +73,10 @@ class DAQGUI:
 
         # Plot for Velocity
         plt_vel = self.win.addPlot(row=2, col=0, title="Measured and Command velocity")
-        self.curve_vel = plt_vel.plot(pen=pg.mkPen("#00a0e9", width=3))
-        self.curve_vel_ref = plt_vel.plot(pen=pg.mkPen("#a05aff", width=3), stepMode="right")
+        plt_vel.addLegend()
+        self.curve_vel = plt_vel.plot(pen=pg.mkPen("#00a0e9", width=3), name="Measured")
+        self.curve_vel_movingave = plt_vel.plot(pen=pg.mkPen("#d62728", width=3), name="Moving average")
+        self.curve_vel_ref = plt_vel.plot(pen=pg.mkPen("#a05aff", width=3), stepMode="right", name="Command")
         plt_vel.setLabel("left", "Velocity [rps]")
         plt_vel.setLabel("bottom", "Time [s]")
         self.plt_vel = plt_vel
@@ -119,6 +121,8 @@ class DAQGUI:
         
         self.xs_vel = np.empty(0, dtype=np.float32)
         self.y_vel = np.empty(0, dtype=np.float32)
+        self.xs_vel_movingave = np.empty(0, dtype=np.float32)
+        self.y_vel_movingave = np.empty(0, dtype=np.float32)
         self.xr_vel = np.empty(0, dtype=np.float32)
         self.yr_vel = np.empty(0, dtype=np.float32)
         
@@ -138,7 +142,7 @@ class DAQGUI:
         try:
             while True:
                 data = self.quad_q.get_nowait()
-                t_ax, pA, pB, qsig, t_end, cum_cnt, vel, t_ref, v_ref, time_p, P_tot_sum, _Ju, _Jv, _Jw, _Jtot  = data
+                t_ax, pA, pB, qsig, t_end, cum_cnt, vel, t_ref, v_ref, time_p, P_tot_sum, _Ju, _Jv, _Jw, _Jtot, movingave_times, movingave_velocities = data
 
                 pruning = self.cfg.gui.pruning if self.cfg.gui.pruning >= 1 else 1
                 history = self.cfg.dependent.history
@@ -158,6 +162,13 @@ class DAQGUI:
                 # Update velocity buffers
                 self.xs_vel = np.append(self.xs_vel, t_end)[-self.cfg.dependent.velo_history:]
                 self.y_vel = np.append(self.y_vel, vel)[-self.cfg.dependent.velo_history:]
+                if movingave_times.size:
+                    self.xs_vel_movingave = np.concatenate((self.xs_vel_movingave, movingave_times))
+                    self.y_vel_movingave = np.concatenate((self.y_vel_movingave, movingave_velocities))
+                    movingave_history_sec = self.cfg.dependent.velo_history * self.cfg.io.proc_interval
+                    keep_movingave = self.xs_vel_movingave >= t_end - movingave_history_sec
+                    self.xs_vel_movingave = self.xs_vel_movingave[keep_movingave]
+                    self.y_vel_movingave = self.y_vel_movingave[keep_movingave]
                 self.xr_vel = np.concatenate((self.xr_vel, t_ref))[-self.cfg.dependent.velo_history:]
                 self.yr_vel = np.concatenate((self.yr_vel, v_ref))[-self.cfg.dependent.velo_history:]
                 
@@ -208,6 +219,7 @@ class DAQGUI:
         #velocity
         #self.curve_cnt.setData(self.xs_cnt, self.y_cnt)
         self.curve_vel.setData(self.xs_vel, self.y_vel)
+        self.curve_vel_movingave.setData(self.xs_vel_movingave, self.y_vel_movingave)
         self.curve_vel_ref.setData(self.xr_vel, self.yr_vel)
         # Power
         self.curve_pow_tot.setData(self.xs_pow, self.y_pow_tot)
