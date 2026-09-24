@@ -12,10 +12,8 @@ quad_depth     = 100        # processed backlog
 [encoder_postproc]
 quadpulse_width = 0.00025      # width [s] assuming 4x given 1 rps
 threshold       = 2.5          # V logic threshold
-# Use a power of two from 2 to 256.
-movingave_window_pulses  = 256
-# Use a value from 1 to movingave_window_pulses - 1.
-movingave_overlap_pulses = 1
+time_delta_window_size = 256
+time_delta_shift       = 32
 
 # ------------------------------------------------------------  GUI
 [gui]
