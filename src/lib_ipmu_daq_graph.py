@@ -122,8 +122,8 @@ class DAQGUI:
         
         self.xs_vel = np.empty(0, dtype=np.float32)
         self.y_vel = np.empty(0, dtype=np.float32)
-        self.xs_vel_time_delta = np.empty(0, dtype=np.float32)
-        self.y_vel_time_delta = np.empty(0, dtype=np.float32)
+        self.xs_vel_time_delta = np.empty(0, dtype=np.float64)
+        self.y_vel_time_delta = np.empty(0, dtype=np.float64)
         self.xr_vel = np.empty(0, dtype=np.float32)
         self.yr_vel = np.empty(0, dtype=np.float32)
         

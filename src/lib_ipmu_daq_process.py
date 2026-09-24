@@ -33,7 +33,8 @@ class Processor:
         self.logger = logger
         self.active_dset = None
         self.last_active_dset = None
-        self.time_delta_event_q: deque[float] = deque()
+        self.time_delta_event_q: deque[int] = deque()
+        self.time_delta_direction_q: deque[int] = deque()
         self.velocity_time_delta = 0.0
 
     def run(self):
@@ -51,7 +52,8 @@ class Processor:
         buf_hdf5_idx = 0
         
         # python ring buffer
-        ring_t: deque[np.float32] = deque(); ring_a: deque[np.float32] = deque(); ring_b: deque[np.float32] = deque()
+        ring_sample_index: deque[np.int64] = deque(); ring_t: deque[np.float64] = deque()
+        ring_a: deque[np.float32] = deque(); ring_b: deque[np.float32] = deque()
         ring_Iu: deque[np.float32] = deque(); ring_Iv: deque[np.float32] = deque(); ring_Iw: deque[np.float32] = deque()
         ring_Vu: deque[np.float32] = deque(); ring_Vv: deque[np.float32] = deque(); ring_Vw: deque[np.float32] = deque()
 
@@ -67,8 +69,9 @@ class Processor:
         while not self.stop_event.is_set():
             try:
                 while True:
-                    t, pA, pB, Iu, Iv, Iw, Vu, Vv, Vw = self.buf_q.get_nowait()
-                    ring_t.extend(t); ring_a.extend(pA); ring_b.extend(pB)
+                    sample_indices, sample_rate, t, pA, pB, Iu, Iv, Iw, Vu, Vv, Vw = self.buf_q.get_nowait()
+                    ring_sample_index.extend(sample_indices); ring_t.extend(t)
+                    ring_a.extend(pA); ring_b.extend(pB)
                     ring_Iu.extend(Iu); ring_Iv.extend(Iv); ring_Iw.extend(Iw)
                     ring_Vu.extend(Vu); ring_Vv.extend(Vv); ring_Vw.extend(Vw)
                     self.buf_q.task_done()
@@ -86,7 +89,8 @@ class Processor:
 
             # ----------Copy deque -> NumPy ----------
             samples_proc = self.cfg.dependent.samples_proc
-            t_blk = np.array([ring_t.popleft() for _ in range(samples_proc)], dtype=np.float32)
+            sample_index_blk = np.array([ring_sample_index.popleft() for _ in range(samples_proc)], dtype=np.int64)
+            t_blk = np.array([ring_t.popleft() for _ in range(samples_proc)], dtype=np.float64)
             a_blk = np.array([ring_a.popleft() for _ in range(samples_proc)], dtype=np.float32)
             b_blk = np.array([ring_b.popleft() for _ in range(samples_proc)], dtype=np.float32)
             Iu_blk = np.array([ring_Iu.popleft() for _ in range(samples_proc)], dtype=np.float32)
@@ -105,7 +109,7 @@ class Processor:
             velocity = delta_cnt / self.cfg.io.proc_interval / PULSES_PER_REVOLUTION
             vel_blk = np.full(len(t_blk[::pruning]), velocity)
 
-            quad_times, quad_values, time_delta_times, time_delta_velocities = self._getTimeDeltaVelocity(t_blk, dir_log)
+            quad_times, quad_values, time_delta_times, time_delta_velocities = self._getTimeDeltaVelocity(sample_index_blk, dir_log, sample_rate)
             if time_delta_velocities.size:
                 self.velocity_time_delta = float(time_delta_velocities[-1])
 
@@ -248,41 +252,54 @@ class Processor:
     def _getPulseCount(self, dir_log: np.ndarray) -> int:
         return np.sum(dir_log)
 
-    def _getTimeDeltaVelocity(self, t: np.ndarray, dir_log: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        """Calculates rotational velocity from positive quadrature event intervals."""
+    def _getTimeDeltaVelocity(self, sample_indices: np.ndarray, dir_log: np.ndarray, sample_rate: float) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Calculates signed rotational velocity from quadrature event intervals."""
         window_size = self.cfg.encoder_postproc.time_delta_window_size
         shift = self.cfg.encoder_postproc.time_delta_shift
         if window_size <= 0 or shift <= 0:
             raise ValueError("time_delta_window_size and time_delta_shift must be positive")
 
-        event_indices = np.flatnonzero(dir_log == 1)
-        quad_times = np.asarray(t[event_indices], dtype=np.float32)
+        event_indices = np.flatnonzero(dir_log)
+        event_sample_indices = np.asarray(sample_indices[event_indices], dtype=np.int64)
+        quad_times = event_sample_indices.astype(np.float64) / sample_rate
         quad_values = np.asarray(dir_log[event_indices], dtype=np.int8)
-        self.time_delta_event_q.extend(float(event_time) for event_time in quad_times)
+        self.time_delta_event_q.extend(int(sample_index) for sample_index in event_sample_indices)
+        self.time_delta_direction_q.extend(int(direction) for direction in quad_values)
 
         velocity_times = []
         velocities = []
         while len(self.time_delta_event_q) >= window_size + 1:
-            event_times = np.fromiter(
+            window_sample_indices = np.fromiter(
                 self.time_delta_event_q,
-                dtype=np.float64,
+                dtype=np.int64,
                 count=window_size + 1,
             )
-            start_time = event_times[0]
-            end_time = event_times[window_size]
-            elapsed_time = end_time - start_time
-            if elapsed_time > 0:
-                velocity_times.append((start_time + end_time) / 2)
-                velocities.append(window_size / PULSES_PER_REVOLUTION / elapsed_time)
+            window_directions = np.fromiter(
+                self.time_delta_direction_q,
+                dtype=np.int8,
+                count=window_size + 1,
+            )
+            start_sample = window_sample_indices[0]
+            end_sample = window_sample_indices[window_size]
+            elapsed_samples = end_sample - start_sample
+            if elapsed_samples > 0:
+                signed_pulse_count = np.sum(window_directions[1:])
+                velocity_times.append((start_sample + end_sample) / 2 / sample_rate)
+                velocities.append(
+                    signed_pulse_count * sample_rate
+                    / PULSES_PER_REVOLUTION
+                    / elapsed_samples
+                )
 
             for _ in range(shift):
                 self.time_delta_event_q.popleft()
+                self.time_delta_direction_q.popleft()
 
         return (
             quad_times,
             quad_values,
-            np.asarray(velocity_times, dtype=np.float32),
-            np.asarray(velocities, dtype=np.float32),
+            np.asarray(velocity_times, dtype=np.float64),
+            np.asarray(velocities, dtype=np.float64),
         )
 
     def _genQuadPulse(self, t: np.ndarray, dir_log: np.ndarray) -> np.ndarray:
