@@ -23,15 +23,20 @@ class Generator:
         The main loop for the generator thread.
         Continuously generates data until the stop event is set.
         """
-        chunk_idx = 0
+        next_sample_index = 0
         next_t = time.perf_counter()
         
         gen_chunk_sec = self.cfg.io.gen_chunk_sec
-        rel_axis_mock = self.cfg.dependent.rel_axis_mock
+        sample_rate = self.cfg.io.sample_rate
+        n_samples_gen = self.cfg.dependent.n_samples_gen
 
         while not self.stop_event.is_set():
-            base = chunk_idx * gen_chunk_sec
-            t_axis = rel_axis_mock + base
+            sample_indices = np.arange(
+                next_sample_index,
+                next_sample_index + n_samples_gen,
+                dtype=np.int64,
+            )
+            t_axis = sample_indices.astype(np.float64) / sample_rate
             
             pulse_A = self._genChunkPulse(t_axis, phase=self.cfg.debug_encoder.pulse_phase_A)
             pulse_B = self._genChunkPulse(t_axis, phase=self.cfg.dependent.pulse_phase_B)
@@ -45,11 +50,11 @@ class Generator:
             Vw = self._genChunkSin(t_axis, A=1.0, omega=omega, phase=4 * np.pi / 3 + np.pi / 8)
 
             try:
-                self.buf_q.put_nowait((t_axis, pulse_A, pulse_B, Iu, Iv, Iw, Vu, Vv, Vw))
+                self.buf_q.put_nowait((sample_indices, sample_rate, t_axis, pulse_A, pulse_B, Iu, Iv, Iw, Vu, Vv, Vw))
             except queue.Full:
                 pass
 
-            chunk_idx += 1
+            next_sample_index += n_samples_gen
             next_t += gen_chunk_sec
             sleep_time = next_t - time.perf_counter()
             if sleep_time > 0:

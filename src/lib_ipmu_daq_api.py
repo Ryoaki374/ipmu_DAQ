@@ -94,7 +94,7 @@ class DAQApp:
             "quad",
             shape=(0, 2),
             maxshape=(None, 2),
-            dtype=np.float32,
+            dtype=np.float64,
             chunks=(self.cfg.logging.log_chunk, 2),
             compression="gzip"
         )
@@ -103,7 +103,7 @@ class DAQApp:
             "vel",
             shape=(0, 2),
             maxshape=(None, 2),
-            dtype=np.float32,
+            dtype=np.float64,
             chunks=(self.cfg.logging.log_chunk, 2),
             compression="gzip"
         )
