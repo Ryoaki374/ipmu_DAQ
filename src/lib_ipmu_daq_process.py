@@ -26,16 +26,15 @@ class Processor:
         #self.runs_dir = runs_dir
         self.h5f = h5f
         self.dset = dset
-        self.movingave_dset = self.h5f["moving_average/data"] if self.h5f is not None else None
+        self.time_delta_quad_dset = self.h5f["time_delta/quad"] if self.h5f is not None else None
+        self.time_delta_vel_dset = self.h5f["time_delta/vel"] if self.h5f is not None else None
         self.DataStoreFlag = DataStoreFlag
         self.DEBUG = debug
         self.logger = logger
         self.active_dset = None
         self.last_active_dset = None
-        self.movingave_time_q: deque[float] = deque()
-        self.movingave_direction_q: deque[int] = deque()
-        self.movingave_startup_count = 0
-        self.velocity_movingave = 0.0
+        self.time_delta_event_q: deque[float] = deque()
+        self.velocity_time_delta = 0.0
 
     def run(self):
         """
@@ -106,9 +105,9 @@ class Processor:
             velocity = delta_cnt / self.cfg.io.proc_interval / PULSES_PER_REVOLUTION
             vel_blk = np.full(len(t_blk[::pruning]), velocity)
 
-            movingave_times, movingave_velocities = self._getVelocityMovingAve(t_blk, dir_log)
-            if movingave_velocities.size:
-                self.velocity_movingave = float(movingave_velocities[-1])
+            quad_times, quad_values, time_delta_times, time_delta_velocities = self._getTimeDeltaVelocity(t_blk, dir_log)
+            if time_delta_velocities.size:
+                self.velocity_time_delta = float(time_delta_velocities[-1])
 
             # get power
             idx, time_p, P_u, P_v, P_w, P_tot_sum = self._getPower(t_blk, Iu_blk, Iv_blk, Iw_blk, Vu_blk, Vv_blk, Vw_blk, 0, -0.1)
@@ -153,27 +152,36 @@ class Processor:
                 now = time.perf_counter()
                 jitter = (now - last_ts) * 1e3
                 self.logger.info(
-                    "EPOCH = %f, wall = %6.2f ms, jitter = %6.2f ms  delta c=%+d, v=%6.3f, v_movingave=%6.3f, v_ref=%6.3f, time_p = %f, P_tot = %f, _Ju = %f, _Jv = %f, _Jw = %f",
+                    "EPOCH = %f, wall = %6.2f ms, jitter = %6.2f ms  delta c=%+d, v=%6.3f, v_time_delta=%6.3f, v_ref=%6.3f, time_p = %f, P_tot = %f, _Ju = %f, _Jv = %f, _Jw = %f",
                     now, jitter, (now - last_ts) * 1e3,
-                    delta_cnt, velocity, self.velocity_movingave, v_ref, time_p, P_tot_sum, _Ju, _Jv, _Jw
+                    delta_cnt, velocity, self.velocity_time_delta, v_ref, time_p, P_tot_sum, _Ju, _Jv, _Jw
                 )
                 last_ts = now
 
             # ---------- TX to GUI ----------
             try:
-                self.quad_q.put_nowait((t_blk, a_blk, b_blk, quad_sig, t_blk[-1], cum_count, velocity, t_ref, v_ref, time_p, P_tot_sum, _Ju, _Jv, _Jw, _J_tot[-1], movingave_times, movingave_velocities))
+                self.quad_q.put_nowait((t_blk, a_blk, b_blk, quad_sig, t_blk[-1], cum_count, velocity, t_ref, v_ref, time_p, P_tot_sum, _Ju, _Jv, _Jw, _J_tot[-1], time_delta_times, time_delta_velocities))
             except queue.Full:
                 pass
 
-            # ---------- append moving-average results to HDF5 ----------
-            if self.movingave_dset is not None and movingave_velocities.size:
+            # ---------- append time-delta inputs and results to HDF5 ----------
+            if self.time_delta_quad_dset is not None and quad_times.size:
                 try:
-                    movingave_rows = np.column_stack((movingave_times, movingave_velocities))
-                    n = self.movingave_dset.shape[0]
-                    self.movingave_dset.resize(n + len(movingave_rows), axis=0)
-                    self.movingave_dset[n:] = movingave_rows
+                    quad_rows = np.column_stack((quad_times, quad_values))
+                    n = self.time_delta_quad_dset.shape[0]
+                    self.time_delta_quad_dset.resize(n + len(quad_rows), axis=0)
+                    self.time_delta_quad_dset[n:] = quad_rows
                 except Exception as e:
-                    print(f"An error occurred during moving-average HDF5 write: {e}")
+                    print(f"An error occurred during time-delta quad HDF5 write: {e}")
+
+            if self.time_delta_vel_dset is not None and time_delta_velocities.size:
+                try:
+                    velocity_rows = np.column_stack((time_delta_times, time_delta_velocities))
+                    n = self.time_delta_vel_dset.shape[0]
+                    self.time_delta_vel_dset.resize(n + len(velocity_rows), axis=0)
+                    self.time_delta_vel_dset[n:] = velocity_rows
+                except Exception as e:
+                    print(f"An error occurred during time-delta velocity HDF5 write: {e}")
 
             # ---------- append to HDF5 buffer ----------
             #buf_hdf5[buf_hdf5_idx] = (t_blk[-1], (v_ref[-1] if v_ref.size else 0.0), velocity, P_tot_sum, P_u, P_v, P_w, _I2u, _I2v, _I2w) # 7 elements as single value for acc
@@ -240,51 +248,41 @@ class Processor:
     def _getPulseCount(self, dir_log: np.ndarray) -> int:
         return np.sum(dir_log)
 
-    def _getVelocityMovingAve(self, t: np.ndarray, dir_log: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        """Calculates pulse-window velocity estimates across processing blocks."""
-        window_pulses = self.cfg.encoder_postproc.movingave_window_pulses
-        overlap_pulses = self.cfg.encoder_postproc.movingave_overlap_pulses
-        window_step = window_pulses - overlap_pulses
+    def _getTimeDeltaVelocity(self, t: np.ndarray, dir_log: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Calculates rotational velocity from positive quadrature event intervals."""
+        window_size = self.cfg.encoder_postproc.time_delta_window_size
+        shift = self.cfg.encoder_postproc.time_delta_shift
+        if window_size <= 0 or shift <= 0:
+            raise ValueError("time_delta_window_size and time_delta_shift must be positive")
 
-        movingave_times = []
-        movingave_velocities = []
+        event_indices = np.flatnonzero(dir_log == 1)
+        quad_times = np.asarray(t[event_indices], dtype=np.float32)
+        quad_values = np.asarray(dir_log[event_indices], dtype=np.int8)
+        self.time_delta_event_q.extend(float(event_time) for event_time in quad_times)
 
-        event_indices = np.flatnonzero(dir_log)
-        for event_index in event_indices:
-            event_time = float(t[event_index])
-            self.movingave_time_q.append(event_time)
-            self.movingave_direction_q.append(int(dir_log[event_index]))
-
-            if self.movingave_startup_count < window_pulses:
-                movingave_times.append(event_time)
-                movingave_velocities.append(0.0)
-                self.movingave_startup_count += 1
-
-        while len(self.movingave_time_q) >= window_pulses + 1:
+        velocity_times = []
+        velocities = []
+        while len(self.time_delta_event_q) >= window_size + 1:
             event_times = np.fromiter(
-                self.movingave_time_q,
+                self.time_delta_event_q,
                 dtype=np.float64,
-                count=window_pulses + 1,
+                count=window_size + 1,
             )
-            event_directions = np.fromiter(
-                self.movingave_direction_q,
-                dtype=np.int8,
-                count=window_pulses + 1,
-            )
-            elapsed_time = event_times[-1] - event_times[0]
-            signed_pulse_count = np.sum(event_directions[1:])
-            velocity_movingave = signed_pulse_count / elapsed_time / PULSES_PER_REVOLUTION
+            start_time = event_times[0]
+            end_time = event_times[window_size]
+            elapsed_time = end_time - start_time
+            if elapsed_time > 0:
+                velocity_times.append((start_time + end_time) / 2)
+                velocities.append(window_size / PULSES_PER_REVOLUTION / elapsed_time)
 
-            movingave_times.append(event_times[-1])
-            movingave_velocities.append(velocity_movingave)
-
-            for _ in range(window_step):
-                self.movingave_time_q.popleft()
-                self.movingave_direction_q.popleft()
+            for _ in range(shift):
+                self.time_delta_event_q.popleft()
 
         return (
-            np.asarray(movingave_times, dtype=np.float32),
-            np.asarray(movingave_velocities, dtype=np.float32),
+            quad_times,
+            quad_values,
+            np.asarray(velocity_times, dtype=np.float32),
+            np.asarray(velocities, dtype=np.float32),
         )
 
     def _genQuadPulse(self, t: np.ndarray, dir_log: np.ndarray) -> np.ndarray:

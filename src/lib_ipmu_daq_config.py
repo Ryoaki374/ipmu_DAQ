@@ -44,8 +44,8 @@ class LoggingConfig:
 class EncoderPostProcConfig:
     quadpulse_width: float
     threshold: float
-    movingave_window_pulses: int
-    movingave_overlap_pulses: int
+    time_delta_window_size: int
+    time_delta_shift: int
 
 @dataclasses.dataclass
 class DebugEncoderConfig:
