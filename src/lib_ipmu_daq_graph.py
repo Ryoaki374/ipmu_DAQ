@@ -124,6 +124,7 @@ class DAQGUI:
         self.y_vel = np.empty(0, dtype=np.float32)
         self.xs_vel_time_delta = np.empty(0, dtype=np.float64)
         self.y_vel_time_delta = np.empty(0, dtype=np.float64)
+        self.time_delta_has_valid_data = False
         self.xr_vel = np.empty(0, dtype=np.float32)
         self.yr_vel = np.empty(0, dtype=np.float32)
         
@@ -143,7 +144,7 @@ class DAQGUI:
         try:
             while True:
                 data = self.quad_q.get_nowait()
-                t_ax, pA, pB, qsig, t_end, cum_cnt, vel, t_ref, v_ref, time_p, P_tot_sum, _Ju, _Jv, _Jw, _Jtot, time_delta_times, time_delta_velocities = data
+                t_ax, pA, pB, qsig, t_end, cum_cnt, vel, t_ref, v_ref, time_p, P_tot_sum, _Ju, _Jv, _Jw, _Jtot, time_delta_times, time_delta_velocities, time_delta_valid = data
 
                 pruning = self.cfg.gui.pruning if self.cfg.gui.pruning >= 1 else 1
                 history = self.cfg.dependent.history
@@ -164,6 +165,16 @@ class DAQGUI:
                 self.xs_vel = np.append(self.xs_vel, t_end)[-self.cfg.dependent.velo_history:]
                 self.y_vel = np.append(self.y_vel, vel)[-self.cfg.dependent.velo_history:]
                 if time_delta_times.size:
+                    if np.any(time_delta_valid):
+                        if not self.time_delta_has_valid_data:
+                            self.xs_vel_time_delta = np.empty(0, dtype=np.float64)
+                            self.y_vel_time_delta = np.empty(0, dtype=np.float64)
+                            self.time_delta_has_valid_data = True
+                        time_delta_times = time_delta_times[time_delta_valid]
+                        time_delta_velocities = time_delta_velocities[time_delta_valid]
+                    elif self.time_delta_has_valid_data:
+                        time_delta_times = np.empty(0, dtype=np.float64)
+                        time_delta_velocities = np.empty(0, dtype=np.float64)
                     self.xs_vel_time_delta = np.concatenate((self.xs_vel_time_delta, time_delta_times))
                     self.y_vel_time_delta = np.concatenate((self.y_vel_time_delta, time_delta_velocities))
                     time_delta_history_sec = self.cfg.dependent.velo_history * self.cfg.io.proc_interval
