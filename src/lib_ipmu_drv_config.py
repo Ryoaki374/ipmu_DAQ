@@ -59,7 +59,14 @@ class AppConfig:
         # dependent
         target_speed_rpm = int(60*drv["target_speed_rps"])
         electrical_frequency = 36*drv["target_speed_rps"]
-        pps_fin = int(electrical_frequency*1000*0.994)
+        if drv["target_speed_rps"] == 1.0:
+            # adjusting to 1 Hz at CRYO, 35805
+            pps_fin = int(electrical_frequency*1000*0.994601)
+        elif drv["target_speed_rps"] == 0.8:
+            # adjusting to 0.8 Hz at CRYO, 35821
+            pps_fin = int(electrical_frequency*1000*0.995038)
+        else:
+            pps_fin = int(electrical_frequency*1000*0.994)
         # Total rotation time (=RUN_SEC) # added on 2025/05/27 by Taisei
         t_total = t_DC + (pps_fin-pps) / (step / rst) + t_excess_spindown
 
