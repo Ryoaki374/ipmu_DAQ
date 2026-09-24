@@ -75,7 +75,14 @@ class Command:
 
         # Call function
         self.loop_limit = 40_000
-        self.total_pulse = int(36_000*0.994)
+        if self.target_speed_rps == 1.0:
+            # adjusting to 1 Hz at CRYO, 35805
+            self.total_pulse = int(36_000*0.994601)
+        elif self.target_speed_rps == 0.8:
+            # adjusting to 0.8 Hz at CRYO, 35821
+            self.total_pulse = int(36_000*0.995038)
+        else:
+            self.total_pulse = int(36_000*0.994)
         self.driver.initialize()
         self.driver.operation_setting()
         self.driver.pulse_setting()

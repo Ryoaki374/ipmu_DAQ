@@ -7,6 +7,7 @@ DEBUG = 0     # set True for jitter log
 [driver]
 device_com = 'COM5'
 target_speed_rps = 1.0    # target rotation frequency [rps]
+#target_speed_rps = 0.8   # target rotation frequency [rps]
 #current_init = 10                 # fraction to 1 A [%]
 current_init = 120                 # fraction to 100 mA [%]
 electrical_angle_init = 250       # pulses to set 
