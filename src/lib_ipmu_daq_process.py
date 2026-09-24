@@ -34,6 +34,7 @@ class Processor:
         self.active_dset = None
         self.last_active_dset = None
         self.time_delta_event_q: deque[int] = deque()
+        self.time_delta_direction_q: deque[int] = deque()
         self.velocity_time_delta = 0.0
 
     def run(self):
@@ -252,17 +253,18 @@ class Processor:
         return np.sum(dir_log)
 
     def _getTimeDeltaVelocity(self, sample_indices: np.ndarray, dir_log: np.ndarray, sample_rate: float) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        """Calculates rotational velocity from positive quadrature event intervals."""
+        """Calculates signed rotational velocity from quadrature event intervals."""
         window_size = self.cfg.encoder_postproc.time_delta_window_size
         shift = self.cfg.encoder_postproc.time_delta_shift
         if window_size <= 0 or shift <= 0:
             raise ValueError("time_delta_window_size and time_delta_shift must be positive")
 
-        event_indices = np.flatnonzero(dir_log == 1)
+        event_indices = np.flatnonzero(dir_log)
         event_sample_indices = np.asarray(sample_indices[event_indices], dtype=np.int64)
         quad_times = event_sample_indices.astype(np.float64) / sample_rate
         quad_values = np.asarray(dir_log[event_indices], dtype=np.int8)
         self.time_delta_event_q.extend(int(sample_index) for sample_index in event_sample_indices)
+        self.time_delta_direction_q.extend(int(direction) for direction in quad_values)
 
         velocity_times = []
         velocities = []
@@ -272,19 +274,26 @@ class Processor:
                 dtype=np.int64,
                 count=window_size + 1,
             )
+            window_directions = np.fromiter(
+                self.time_delta_direction_q,
+                dtype=np.int8,
+                count=window_size + 1,
+            )
             start_sample = window_sample_indices[0]
             end_sample = window_sample_indices[window_size]
             elapsed_samples = end_sample - start_sample
             if elapsed_samples > 0:
+                signed_pulse_count = np.sum(window_directions[1:])
                 velocity_times.append((start_sample + end_sample) / 2 / sample_rate)
                 velocities.append(
-                    window_size * sample_rate
+                    signed_pulse_count * sample_rate
                     / PULSES_PER_REVOLUTION
                     / elapsed_samples
                 )
 
             for _ in range(shift):
                 self.time_delta_event_q.popleft()
+                self.time_delta_direction_q.popleft()
 
         return (
             quad_times,
